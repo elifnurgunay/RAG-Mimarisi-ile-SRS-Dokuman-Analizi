@@ -1,1 +1,1 @@
-# Afet-Verilerinden-NLP-ile-htiya-Analizi-
+
