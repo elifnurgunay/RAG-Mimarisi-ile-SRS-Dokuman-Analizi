@@ -1,2 +1,2 @@
-#RAG Mimarisi İle SRS Doküman Analizi:
+# RAG Mimarisi İle SRS Doküman Analizi:
 Bu proje, yazılım gereksinim dokümanlarını (SRS) otomatik olarak analiz eden, RAG (Retrieval-Augmented Generation) tabanlı bir sistemin geliştirilmesini hedefler. Sistem; SRS dokümanlarını alır, metne dönüştürür, gereksinim bazlı parçalara ayırır ve vektör veritabanı üzerinden ilgili içerikleri çekerek LLM yardımıyla analiz eder. Bu analiz kapsamında gereksinimlerdeki belirsizlikler, tutarsızlıklar, eksiklikler ve test edilebilirlik problemleri tespit edilir ve kullanıcıya yapılandırılmış bir rapor olarak sunulur. Böylece yazılım geliştirme sürecinde gereksinim kalitesini artıran, manuel analiz yükünü azaltan ve karar destek sağlayan akıllı bir sistem oluşturulur.
