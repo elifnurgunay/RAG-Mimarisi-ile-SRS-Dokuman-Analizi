@@ -1,0 +1,10 @@
+# Sanal Ortam
+venv/
+env/
+
+# Python Önbellek Dosyaları
+__pycache__/
+*.pyc
+
+# Çevresel Değişkenler (API Key'ler burada duracak, kimse görmemeli!)
+.env
