@@ -1,37 +1,29 @@
-qdrant-client>=1.17.0
-sentence-transformers>=2.2.0
-python-dotenv>=1.0.0
-rank-bm25>=0.2.0
-numpy>=1.21.0
-torch>=2.0.0
-transformers>=4.21.0
-scikit-learn>=1.0.0
-pillow==12.1.1
-portalocker==3.2.0
-propcache==0.4.1
-protobuf==7.34.1
-pycparser==3.0
-pydantic==2.12.5
-pydantic-settings==2.13.1
-pydantic_core==2.41.5
-pyparsing==3.3.2
-python-dateutil==2.9.0.post0
-python-dotenv==1.2.2
-pywin32==311
-PyYAML==6.0.3
+# Arayüz ve Veri İşleme
+streamlit==1.55.0
+pandas==2.3.3
+numpy==2.4.3
+
+# Yapay Zeka ve RAG Altyapısı (LlamaIndex & LangChain)
+llama-index==0.12.18
+llama-index-llms-groq==0.5.0
+langchain==1.2.14
+langchain-community==0.4.1
+langchain-text-splitters==1.1.1
+langchain-huggingface==1.2.1
+langchain-qdrant==1.1.0
+
+# Vektör Veritabanı ve Embedding
 qdrant-client==1.17.1
+sentence-transformers==5.3.0
+
+# Derin Öğrenme ve Model Destek (Hata almamak için şart)
+torch==2.11.0
+transformers==4.57.6
+scipy==1.17.1
+scikit-learn==1.8.0
+
+# Yardımcı Araçlar
+pypdf==6.9.2
+python-dotenv==1.2.2
 requests==2.33.1
-requests-toolbelt==1.0.0
-six==1.17.0
-sounddevice==0.5.5
-SQLAlchemy==2.0.48
 tenacity==9.1.4
-typing-inspect==0.9.0
-typing-inspection==0.4.2
-typing_extensions==4.15.0
-urllib3==2.6.3
-uuid_utils==0.14.1
-xxhash==3.6.0
-yarl==1.23.0
-zstandard==0.25.0
-sentence-transformers==2.2.2
