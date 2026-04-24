@@ -129,6 +129,8 @@ Sen uzman bir Yazılım Gereksinim Mühendisisin ve ISO/IEC/IEEE 29148 standard�
             if isinstance(parsed_data, dict):
                 parsed_data = AnalysisReport(**parsed_data)
 
+            parsed_data.document_name = doc_name
+
             # 3. Skoru Python ile hesapla
             parsed_data.overall_quality_score = calculate_score(parsed_data.issues)
 
