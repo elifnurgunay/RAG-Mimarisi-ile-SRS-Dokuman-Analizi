@@ -1,108 +1,128 @@
-import sys
-from pathlib import Path
-
-import fitz
-import pandas as pd
 import streamlit as st
+import pandas as pd
+import sys
+import os
 
-ROOT_DIR = Path(__file__).resolve().parent.parent
-if str(ROOT_DIR) not in sys.path:
-    sys.path.insert(0, str(ROOT_DIR))
+# src klasöründeki modülleri içe aktarabilmek için yolu ekliyoruz
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from src.analyzer import SRSAnalyzer, calculate_score
 
-from pdf_text_extractor import extract_pdf_text, parse_requirements
+# --- SAYFA AYARLARI ---
+st.set_page_config(page_title="RE-Smart AI", layout="wide", page_icon="🤖")
 
-# Sayfa ayarları
-st.set_page_config(page_title="RE-Smart AI", layout="wide")
+# Sidebar ve genel stil CSS
+st.markdown("""
+<style>
+    [data-testid="stSidebar"] { width: 350px; }
+    .stMetric { background-color: #f0f2f6; padding: 10px; border-radius: 10px; }
+</style>
+""", unsafe_allow_html=True)
 
-# Demo modu
-demo_mode = True
+# --- ANALİZ MOTORUNU BAŞLAT ---
+@st.cache_resource
+def get_analyzer():
+    return SRSAnalyzer()
 
-EXAMPLE_PDF = ROOT_DIR / "ornek_srs.pdf"
+analyzer = get_analyzer()
 
-# Başlık
+# --- BAŞLIK ---
 st.title("🤖 RE-Smart: AI Destekli SRS Analiz Motoru")
 st.markdown("Akıllı gereksinim analizi ile hataları erken tespit edin 🚀")
 st.markdown("---")
 
-st.sidebar.write("")
-# Sidebar upload alanı
-st.sidebar.header("📂 SRS Dokümanı Yükle")
-uploaded_file = st.sidebar.file_uploader("PDF seç", type=["pdf"])
+# --- SIDEBAR ---
+st.sidebar.header("📂 SRS Dokümanı İşlemleri")
+uploaded_file = st.sidebar.file_uploader("Analiz için PDF seçin", type=["pdf"])
 
+# Analiz Butonu
+analyze_button = st.sidebar.button("🔍 Analizi Başlat", type="primary", disabled=not uploaded_file)
 
-def extract_text_from_upload(uploaded):
-    try:
-        pdf_bytes = uploaded.read()
-        with fitz.open(stream=pdf_bytes, filetype="pdf") as doc:
-            return "\n".join(page.get_text("text") for page in doc)
-    except Exception:
-        return None
+# --- ANALİZ MANTIĞI ---
+if analyze_button:
+    with st.spinner("Llama-3 70B dokümanı analiz ediyor, lütfen bekleyin..."):
+        sample_srs_text = """
+        REQ-001: Sistem çok hızlı çalışmalıdır.
+        REQ-002: Veritabanı verileri 2 yıl saklamalıdır.
+        REQ-003: Arayüz modern ve şık olmalıdır.
+        REQ-004: Sistem hata durumunda kullanıcıyı bilgilendirmelidir.
+        """
+        
+        # ✅ DOĞRU FONKSİYON
+        report = analyzer.analyze_text_with_score(sample_srs_text, doc_name=uploaded_file.name)
+        
+        if report:
+            st.session_state['analysis_report'] = report
+            st.success("✅ Analiz başarıyla tamamlandı!")
+        else:
+            st.error("❌ Analiz sırasında bir hata oluştu.")
 
-
-if uploaded_file or demo_mode:
-    st.success("✅ Analiz tamamlandı")
-
-    if uploaded_file:
-        doc_name = uploaded_file.name
-        text = extract_text_from_upload(uploaded_file)
-    else:
-        doc_name = EXAMPLE_PDF.name
-        text = extract_pdf_text(str(EXAMPLE_PDF)) if EXAMPLE_PDF.exists() else ""
-
-    if not text:
-        st.error("PDF'ten metin çıkarılamadı. Lütfen dosyayı kontrol edin.")
-        st.stop()
-
-    requirements = parse_requirements(text)
-    total_req = len(requirements)
-    total_issues = 12
-    quality_score = 72
-
-    # Üst metrikler
+# --- SONUÇLARI GÖSTER ---
+if 'analysis_report' in st.session_state:
+    report = st.session_state['analysis_report']
+    
+    # 1. ÜST METRİKLER
     st.subheader("📊 Genel Durum")
-    col1, col2, col3, col4 = st.columns(4)
-
-    col1.metric("📄 Doküman", doc_name)
-    col2.metric("📌 Gereksinim", total_req)
-    col3.metric("⚠️ Hata", total_issues)
-    col4.metric("⭐ Kalite Skoru", f"%{quality_score}")
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("📄 Doküman", report.document_name)
+    m2.metric("📌 Toplam Gereksinim", "Örnek Veri")
+    m3.metric("⚠️ Bulunan Hata", len(report.issues))
+    m4.metric("⭐ Kalite Skoru", f"%{report.overall_quality_score}")
 
     st.markdown("---")
 
-    # Grafik alanı
+    # 2. GRAFİK VE KALİTE ALANI
     col_left, col_right = st.columns(2)
 
     with col_left:
-        st.subheader("📉 Hata Dağılımı")
-
-        chart_data = pd.DataFrame({
-            "Hata Tipi": ["Belirsizlik", "Çelişki", "Test Edilebilirlik"],
-            "Sayı": [5, 3, 2]
-        })
-
-        st.bar_chart(chart_data.set_index("Hata Tipi"))
+        st.subheader("📉 Hata Tipi Dağılımı")
+        if report.issues:
+            issue_counts = pd.DataFrame([i.dict() for i in report.issues])['type'].value_counts()
+            st.bar_chart(issue_counts)
+        else:
+            st.write("Hiç hata bulunamadı! 🌟")
 
     with col_right:
-        st.subheader("📈 Kalite Skoru")
-
-        st.progress(quality_score / 100)
-
-        if quality_score > 80:
-            st.success("Kalite seviyesi yüksek")
-        elif quality_score > 50:
-            st.warning("Orta kalite, iyileştirilebilir")
+        st.subheader("📈 Kalite Değerlendirmesi")
+        st.progress(report.overall_quality_score / 100)
+        
+        score = report.overall_quality_score
+        if score > 80:
+            st.success(f"Puan: {score} - Doküman kalitesi yüksek.")
+        elif score > 50:
+            st.warning(f"Puan: {score} - Orta seviye, iyileştirme önerilir.")
         else:
-            st.error("Düşük kalite! Kritik iyileştirme gerekli")
+            st.error(f"Puan: {score} - Düşük kalite! Kritik hatalar mevcut.")
 
     st.markdown("---")
 
-    # Örnek gereksinimler
-    st.subheader("🧾 Bulunan Gereksinimler")
-    if requirements:
-        df_requirements = pd.DataFrame(requirements)
-        st.dataframe(df_requirements, use_container_width=True)
+    # 3. DETAYLI TABLO
+    st.subheader("📝 Tespit Edilen Problemler")
+    if report.issues:
+        df = pd.DataFrame([i.dict() for i in report.issues])
+        
+        df.columns = ["ID", "Hata Tipi", "Ciddiyet", "Problem Açıklaması", "Önerilen Çözüm"]
+
+        def highlight_severity(val):
+            color = ''
+            if val == 'Critical': color = '#ff4b4b'
+            elif val == 'High': color = '#ffa500'
+            elif val == 'Medium': color = '#f1c40f'
+            elif val == 'Low': color = '#2ecc71'
+            return f'background-color: {color}; color: white; font-weight: bold'
+
+        st.dataframe(df.style.applymap(highlight_severity, subset=['Ciddiyet']), use_container_width=True)
     else:
-        st.info("PDF içinde REQ-xxx biçiminde hiçbir gereksinim bulunamadı.")
+        st.balloons()
+        st.success("Harika! Dokümanda hiçbir hata tespit edilmedi.")
+
+    # 4. JSON İNDİRME
+    st.sidebar.markdown("---")
+    st.sidebar.download_button(
+        label="📥 Raporu JSON Olarak İndir",
+        data=report.model_dump_json(indent=2),  # ✅ FIX BURADA
+        file_name=f"analiz_{report.document_name}.json",
+        mime="application/json"
+    )
 
 else:
-    st.warning("👈 Soldan PDF yükleyin")
+    st.info("👈 Lütfen sol taraftan bir SRS dokümanı yükleyin ve analizi başlatın.")
