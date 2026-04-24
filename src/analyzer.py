@@ -22,7 +22,9 @@ class AnalysisReport(BaseModel):
     overall_quality_score: int
     issues: List[RequirementIssue]
 
+# --- YARDIMCI FONKSİYONLAR ---
 def calculate_score(issues: List[RequirementIssue]) -> int:
+    """Hataların ciddiyetine göre 100 üzerinden kalite puanı hesaplar."""
     score = 100
     weights = {"Critical": 20, "High": 10, "Medium": 5, "Low": 2}
     for issue in issues:
@@ -38,12 +40,15 @@ class SRSAnalyzer:
             
         self.llm = ChatGroq(
             model="llama-3.3-70b-versatile",
-            temperature=0.0,
+            temperature=0.0,  # Deterministik çıktı
             groq_api_key=api_key
         )
         self.parser = JsonOutputParser(pydantic_object=AnalysisReport)
 
     def analyze_text(self, srs_text: str, doc_name: str = "Doküman") -> AnalysisReport:
+        """
+        SRS metnini analiz eder ve sonucu AnalysisReport nesnesi olarak döner.
+        """
         prompt_template = """
 Sen uzman bir Yazılım Gereksinim Mühendisisin ve ISO/IEC/IEEE 29148 standardına göre analiz yapıyorsun.
 
@@ -51,36 +56,16 @@ Görevin:
 Verilen gereksinimleri DERİNLEMESİNE incele ve SADECE açıkça tespit edilebilir sorunları raporla.
 
 Analiz Kriterleri:
-
-1. Ambiguity:
-- Belirsiz kelimeler: "hızlı", "iyi", "kullanıcı dostu"
-- Ölçülemeyen ifadeler
-
-2. Inconsistency:
-- Birbiriyle çelişen gereksinimler
-- Farklı yerlerde farklı değerler
-
-3. Incompleteness:
-- Eksik bilgi (kim? ne zaman? nasıl?)
-- Edge case eksiklikleri
-
-4. Testability:
-- Test edilemeyen gereksinimler
-- Ölçü kriteri olmayan ifadeler
+1. Ambiguity: Ölçülemeyen ifadeler (hızlı, iyi vb.)
+2. Inconsistency: Birbiriyle çelişen gereksinimler
+3. Incompleteness: Eksik bilgi veya aktör eksikliği
+4. Testability: Test edilemeyen/ölçülemeyen gereksinimler
 
 Kurallar:
-- Her issue için mutlaka req_id belirt
-- Eğer sorun yoksa boş liste döndür (uydurma!)
-- Teknik ve net yaz
-- Genelleme yapma
-
-overall_quality_score hesaplama:
-- Başlangıç: 100
-- Critical: -20
-- High: -10
-- Medium: -5
-- Low: -2
-- Minimum skor: 0
+- Her issue için mutlaka req_id belirt (Metinde ID yoksa 'ID-YOK' yaz).
+- Eğer sorun yoksa 'issues' listesini boş döndür.
+- Teknik ve net yaz.
+- overall_quality_score'u hesaplarken her hatayı ciddiyetine göre değerlendir.
 
 --- ANALİZ EDİLECEK METİN ---
 {srs_text}
@@ -96,50 +81,27 @@ overall_quality_score hesaplama:
         chain = prompt | self.llm
 
         try:
+            # 1. LLM Yanıtını Al
             raw_output = chain.invoke({"srs_text": srs_text})
-            return self.parser.parse(raw_output.content)
-        except Exception as e:
-            print(f"Analiz Hatası: {e}")
-            return None
-
-    def analyze_text_with_score(self, srs_text: str, doc_name: str = "Doküman") -> AnalysisReport:
-        prompt_template = """
-Sen uzman bir Yazılım Gereksinim Mühendisisin ve ISO/IEC/IEEE 29148 standardına göre analiz yapıyorsun.
-
---- ANALİZ EDİLECEK METİN ---
-{srs_text}
-
-Çıktıyı SADECE şu JSON formatında ver:
-{format_instructions}
-"""
-
-        prompt = ChatPromptTemplate.from_template(prompt_template).partial(
-            format_instructions=self.parser.get_format_instructions()
-        )
-
-        chain = prompt | self.llm
-
-        try:
-            raw_output = chain.invoke({"srs_text": srs_text})
-
-            # 1. Parse
+            
+            # 2. Ham metni sözlüğe (dict) çevir
             parsed_data = self.parser.parse(raw_output.content)
 
-            # 2. dict ise objeye çevir (HATA FIX)
+            # 3. SÖZLÜĞÜ NESNEYE ÇEVİR 
             if isinstance(parsed_data, dict):
-                parsed_data = AnalysisReport(**parsed_data)
+                report_obj = AnalysisReport(**parsed_data)
+            else:
+                report_obj = parsed_data
 
-            parsed_data.document_name = doc_name
-
-            # 3. Skoru Python ile hesapla
-            parsed_data.overall_quality_score = calculate_score(parsed_data.issues)
-
-            return parsed_data
+            # 4. Profesyonel Skorlama ve Metadata Güncelleme
+            report_obj.document_name = doc_name
+            report_obj.overall_quality_score = calculate_score(report_obj.issues)
+            
+            return report_obj
 
         except Exception as e:
             print(f"Analiz Hatası: {e}")
             return None
-
 
 # --- TEST ETME ---
 if __name__ == "__main__":
@@ -151,5 +113,6 @@ if __name__ == "__main__":
     REQ-003: Sistem kullanıcı dostu olmalı.
     """
     
-    result = analyzer.analyze_text_with_score(test_text)
-    print(result)
+    result = analyzer.analyze_text(test_text, "Test_Gereksinimleri")
+    print(f"Puan: {result.overall_quality_score}")
+    print(f"Hatalar: {result.issues}")
