@@ -1,23 +1,15 @@
-import streamlit as st
+import sys
+from pathlib import Path
+
+import fitz
 import pandas as pd
+import streamlit as st
 
-# Sidebar genişliğini artırmak için CSS
-st.markdown("""
-<style>
-/* Sidebar genişliği */
-[data-testid="stSidebar"] {
-    width: 350px;
-}
+ROOT_DIR = Path(__file__).resolve().parent.parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
 
-/* File uploader kutusuna stil */
-[data-testid="stFileUploader"] {
-    border: 2px dashed #4CAF50;
-    padding: 10px;
-    border-radius: 10px;
-    background-color: #f9f9f9;
-}
-</style>
-""", unsafe_allow_html=True)
+from pdf_text_extractor import extract_pdf_text, parse_requirements
 
 # Sayfa ayarları
 st.set_page_config(page_title="RE-Smart AI", layout="wide")
@@ -25,23 +17,44 @@ st.set_page_config(page_title="RE-Smart AI", layout="wide")
 # Demo modu
 demo_mode = True
 
+EXAMPLE_PDF = ROOT_DIR / "ornek_srs.pdf"
+
 # Başlık
 st.title("🤖 RE-Smart: AI Destekli SRS Analiz Motoru")
 st.markdown("Akıllı gereksinim analizi ile hataları erken tespit edin 🚀")
 st.markdown("---")
 
-st.sidebar.markdown("<br><br><br><br>", unsafe_allow_html=True)
+st.sidebar.write("")
 # Sidebar upload alanı
 st.sidebar.header("📂 SRS Dokümanı Yükle")
 uploaded_file = st.sidebar.file_uploader("PDF seç", type=["pdf"])
 
-# Demo çalıştır
-if uploaded_file or demo_mode:
 
+def extract_text_from_upload(uploaded):
+    try:
+        pdf_bytes = uploaded.read()
+        with fitz.open(stream=pdf_bytes, filetype="pdf") as doc:
+            return "\n".join(page.get_text("text") for page in doc)
+    except Exception:
+        return None
+
+
+if uploaded_file or demo_mode:
     st.success("✅ Analiz tamamlandı")
 
-    doc_name = uploaded_file.name if uploaded_file else "demo_srs.pdf"
-    total_req = 42
+    if uploaded_file:
+        doc_name = uploaded_file.name
+        text = extract_text_from_upload(uploaded_file)
+    else:
+        doc_name = EXAMPLE_PDF.name
+        text = extract_pdf_text(str(EXAMPLE_PDF)) if EXAMPLE_PDF.exists() else ""
+
+    if not text:
+        st.error("PDF'ten metin çıkarılamadı. Lütfen dosyayı kontrol edin.")
+        st.stop()
+
+    requirements = parse_requirements(text)
+    total_req = len(requirements)
     total_issues = 12
     quality_score = 72
 
@@ -83,33 +96,13 @@ if uploaded_file or demo_mode:
 
     st.markdown("---")
 
-    # Detay tablo
-    st.subheader("📝 Tespit Edilen Problemler")
-
-    data = {
-        "ID": ["REQ-005", "REQ-012", "REQ-028", "REQ-033", "REQ-040"],
-        "Hata": ["Belirsizlik", "Çelişki", "Test Edilebilirlik", "Eksiklik", "Belirsizlik"],
-        "Severity": ["Orta", "Kritik", "Düşük", "Kritik", "Orta"],
-        "Açıklama": [
-            "‘Hızlı olmalı’ ifadesi ölçülemez.",
-            "REQ-045 ile çelişiyor.",
-            "Test kriteri yok.",
-            "Security eksik.",
-            "Standart belirtilmemiş."
-        ]
-    }
-
-    df = pd.DataFrame(data)
-
-    def highlight(row):
-        if row["Severity"] == "Kritik":
-            return ["background-color: #ff4b4b"] * len(row)
-        elif row["Severity"] == "Orta":
-            return ["background-color: #ffa500"] * len(row)
-        else:
-            return ["background-color: #2ecc71"] * len(row)
-
-    st.dataframe(df.style.apply(highlight, axis=1), use_container_width=True)
+    # Örnek gereksinimler
+    st.subheader("🧾 Bulunan Gereksinimler")
+    if requirements:
+        df_requirements = pd.DataFrame(requirements)
+        st.dataframe(df_requirements, use_container_width=True)
+    else:
+        st.info("PDF içinde REQ-xxx biçiminde hiçbir gereksinim bulunamadı.")
 
 else:
     st.warning("👈 Soldan PDF yükleyin")
