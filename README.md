@@ -25,11 +25,17 @@ Bulut bağlantısını test edin:
 python src/bulut_test.py [cite: 171]
 Arayüzü başlatın:
 streamlit run ui/app.py [cite: 106]
+Veri Temizleme Betiği:
+python data_cleaner.py  # Ham gereksinimleri JSON formatına dönüştürür
+Veri Doğrulama Testi:
+python test_cleaned_requirements.py  # Temizlenmiş JSON'un doğruluğunu test eder
 5. Başarı Metrikleri
 Hız: 20 sayfalık analiz < 10 saniye.
 Hassasiyet: %150ms altında Qdrant sorgu gecikmesi.
 Doğruluk: %95+ metin çıkarımı başarısı.
 6. Geliştirici Notları
 Regex Zorluğu: Bozuk PDF formatlarında REQ başlıklarını yakalamak için Samet ile birlikte "Pair Review" yapılmıştır.
+Yeni Parser: `pdf_parser.py` artık tablolardan yapısal veri çıkarma ve bozuk PDF sayfalarında hata yönetimi sunar.
+REQ Bazlı Chunking: `src/chunking_strategy.py` ile REQ-ID bazlı chunking final hale getirildi ve `src/qdrant_setup.py` / `src/retriever.py` buna göre güncellendi.
 JSON Zorunluluğu: LLM çıktıları Pydantic ile kesin JSON formatına zorlanmıştır. 
 Hazırlayanlar: 10. Grup - RE-Smart Ekibi 

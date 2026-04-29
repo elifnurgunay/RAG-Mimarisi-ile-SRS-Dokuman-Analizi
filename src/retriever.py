@@ -21,9 +21,10 @@ sys.modules['pydantic.v1.validators'] = MockModule()
 # --------------------------------------------------
 
 from langchain_community.document_loaders import PyPDFLoader
-from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_qdrant import QdrantVectorStore
+
+from src.chunking_strategy import ReqChunkingStrategy
 
 # .env dosyasını yükle
 env_path = Path(__file__).resolve().parent.parent / ".env"
@@ -47,13 +48,13 @@ class SRSRetriever:
         loader = PyPDFLoader(pdf_path)
         documents = loader.load()
 
-        # Metni kucuk parcalara bol (REQ'ler genelde kisa olur)
-        text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=500,
-            chunk_overlap=50
+        self.chunk_strategy = ReqChunkingStrategy(
+            req_pattern=r"(REQ-\d{3,})",
+            fallback_chunk_size=500,
+            fallback_overlap=50,
         )
-        texts = text_splitter.split_documents(documents)
-        print(f"Metin parcalari olusturuldu: {len(texts)}")
+        texts = self.chunk_strategy.chunk_documents(documents)
+        print(f"Metin parcalari olusturuldu: {len(texts)} (REQ-ID bazli chunking)")
 
         print(f"Qdrant'a yukleniyor (Koleksiyon: {self.collection_name})...")
         self.vector_store = QdrantVectorStore.from_documents(
@@ -70,16 +71,26 @@ class SRSRetriever:
 
     def add_structured_data(self, requirements_json: list):
         """Bera'dan gelen temizlenmiş veriyi (ID ve metin) indexler."""
-        from langchain_core.documents import Document
-        
+        Document = None
+        try:
+            from langchain_core.documents import Document
+        except ImportError:
+            try:
+                from langchain.schema import Document
+            except ImportError:
+                Document = None
+
         docs = []
         for req in requirements_json:
-            doc = Document(
-                page_content=req["text"],
-                metadata={"req_id": req["id"]}
-            )
+            if Document is not None:
+                doc = Document(
+                    page_content=req["text"],
+                    metadata={"req_id": req["id"]}
+                )
+            else:
+                doc = {"page_content": req["text"], "metadata": {"req_id": req["id"]}}
             docs.append(doc)
-        
+
         print(f"{len(docs)} adet yapilandirilmis gereksinim ekleniyor...")
         if not self.vector_store:
             self.vector_store = QdrantVectorStore.from_documents(
