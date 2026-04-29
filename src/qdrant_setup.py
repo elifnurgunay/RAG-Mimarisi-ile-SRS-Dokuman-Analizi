@@ -20,11 +20,10 @@ sys.modules['pydantic.v1.validators'] = MockModule()
 # --------------------------------------------------
 
 from langchain_community.document_loaders import PyPDFLoader
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-
-# İŞTE YENİ, MODERN VE HATASIZ KÜTÜPHANELERİMİZ:
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_qdrant import QdrantVectorStore
+
+from src.chunking_strategy import ReqChunkingStrategy
 
 # 1. Çevresel Değişkenleri Yükle (.env dosyasındaki API keyler vb.)
 load_dotenv()
@@ -33,9 +32,10 @@ class RAGCore:
     def __init__(self):
         # Yeni HuggingFace kütüphanesini kullanıyoruz
         self.embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
-        self.text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=1000, 
-            chunk_overlap=200 
+        self.chunk_strategy = ReqChunkingStrategy(
+            req_pattern=r"(REQ-\d{3,})",
+            fallback_chunk_size=1000,
+            fallback_overlap=200,
         )
 
     def process_document(self, file_path):
@@ -43,9 +43,9 @@ class RAGCore:
         print(f"📄 Dosya yükleniyor: {file_path}")
         loader = PyPDFLoader(file_path)
         documents = loader.load()
-        
-        texts = self.text_splitter.split_documents(documents)
-        print(f"✅ Metin {len(texts)} parçaya bölündü.")
+
+        texts = self.chunk_strategy.chunk_documents(documents)
+        print(f"✅ Metin {len(texts)} parçaya bölündü. (REQ-ID bazlı chunking kullanıldı)")
         
         print("☁️ Qdrant Bulutuna yükleniyor... (Bu işlem PDF'in boyutuna göre biraz sürebilir)")
         
