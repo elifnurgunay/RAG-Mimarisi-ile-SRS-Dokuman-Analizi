@@ -106,10 +106,22 @@ class SRSRetriever:
             self.vector_store.add_documents(docs)
         print("Yapilandirilmis veri basariyla eklendi!")
 
+    def get_all_documents(self):
+        """Koleksiyondaki tüm dokümanları getirir."""
+        if not self.vector_store:
+            self.vector_store = QdrantVectorStore.from_existing_collection(
+                embedding=self.embeddings,
+                collection_name=self.collection_name,
+                url=self.url,
+                api_key=self.api_key,
+                prefer_grpc=False
+            )
+        
+        return self.vector_store.similarity_search("", k=100)
+
     def get_similar_requirements(self, query, top_k=3):
         """Verilen sorguya en benzer gereksinimleri getirir."""
         if not self.vector_store:
-            # Eger henuz indexleme yapilmadiysa mevcut koleksiyona baglanmayi dene
             self.vector_store = QdrantVectorStore.from_existing_collection(
                 embedding=self.embeddings,
                 collection_name=self.collection_name,

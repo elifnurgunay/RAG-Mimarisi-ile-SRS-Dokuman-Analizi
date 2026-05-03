@@ -39,24 +39,29 @@ class ConflictDetector:
         """İki gereksinim arasındaki çelişkiyi analiz eder."""
         
         prompt_template = """
-        Sen uzman bir Yazılım Gereksinim Analistisin. 
-        Aşağıdaki iki gereksinim maddesini karşılaştır ve aralarında bir ÇELİŞKİ (Conflict) olup olmadığını belirle.
-        
-        Gereksinim 1: {req1}
-        Gereksinim 2: {req2}
-        
-        Kurallar:
-        1. Eğer iki madde birbiriyle doğrudan veya dolaylı olarak çelişiyorsa "conflict": true döndür.
-        2. Çelişki yoksa "conflict": false döndür.
-        3. "reason" kısmında teknik bir açıklama yap.
-        
-        Yanıtı SADECE şu JSON formatında ver:
-        {{
-            "conflict": boolean,
-            "reason": "string",
-            "severity": "Low/Medium/High"
-        }}
-        """
+Sen uzman bir Yazılım Gereksinim Analistisin. Aşağıdaki iki gereksinim maddesini karşılaştır ve aralarında bir ÇELİŞKİ (Conflict) veya Tutarsızlık olup olmadığını belirle.
+
+**Gereksinim 1:** {req1}
+**Gereksinim 2:** {req2}
+
+**Analiz Rehberi:**
+- **Nicel Çelişkiler:** Farklı limitler, süreler veya kapasite değerleri (Örn: Biri "5 saniye", diğeri "3 saniye" diyorsa).
+- **Mantıksal Çelişkiler:** Bir madde bir aksiyona izin verirken diğerinin yasaklaması.
+- **Kapsam Çelişkileri:** Aynı süreci farklı aktörlere veya farklı koşullara atayan maddeler.
+- **Terminoloji Farkları:** Aynı kavram için farklı terimler kullanılması (Bu bir "hafif tutarsızlık" olarak raporlanabilir).
+
+**Kurallar:**
+1. Eğer doğrudan veya dolaylı bir çelişki varsa "conflict": true döndür.
+2. Sadece teknik bir fark varsa (çelişki değilse) false döndür.
+3. "reason" kısmında hangi maddelerin neden birbiriyle uyuşmadığını detaylandır.
+
+Yanıtı SADECE şu JSON formatında ver:
+{{
+    "conflict": boolean,
+    "reason": "string",
+    "severity": "Low/Medium/High"
+}}
+"""
         
         prompt = ChatPromptTemplate.from_template(prompt_template)
         chain = prompt | self.llm | self.parser
