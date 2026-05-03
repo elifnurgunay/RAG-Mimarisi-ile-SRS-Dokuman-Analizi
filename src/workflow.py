@@ -11,7 +11,6 @@ from src.logic import ConflictDetector
 
 class SRSWorkflow:
     def __init__(self):
-        # Koleksiyon adının retriever.py ile aynı olduğundan emin ol (Örn: elif_logic_collection)
         self.retriever = SRSRetriever(collection_name="elif_logic_collection")
         self.analyzer = SRSAnalyzer()
         self.detector = ConflictDetector()
@@ -19,13 +18,13 @@ class SRSWorkflow:
     def run_full_analysis(self, pdf_path: str):
         print(f"--- İş akışı başladı: {pdf_path} ---")
         
-        # 1. PDF'i İndeksle
+        # 1. PDF İndeksleme
         if not self.retriever.load_and_index_pdf(pdf_path):
             print("HATA: PDF okunamadı.")
             return None
 
-        # 2. Veritabanından tüm metni çek (Analiz için)
-        # Not: Boş sorgu ("") bazen boş dönebilir, o yüzden genel bir terimle aratalım
+        # 2. Veritabanından tüm metni çekme (Analiz için)
+        # Not: Boş sorgu ("") bazen boş dönebilir, o yüzden genel bir terimle aratılıyor
         all_chunks = self.retriever.get_similar_requirements("gereksinim", top_k=20)
         
         if not all_chunks:
@@ -34,7 +33,7 @@ class SRSWorkflow:
             
         full_text = "\n".join([doc.page_content for doc in all_chunks])
 
-        # 3. Analiz Motorunu Çalıştır
+        # 3. Analiz Motoru Çalışır
         print("LLM Analiz motoru çalışıyor...")
         report = self.analyzer.analyze_text(full_text, doc_name=os.path.basename(pdf_path))
         
