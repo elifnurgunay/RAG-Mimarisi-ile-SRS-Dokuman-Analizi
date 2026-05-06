@@ -144,7 +144,7 @@ class PDFParser:
 
 
 if __name__ == "__main__":
-    parser = PDFParser("ornek_srs.pdf")
+    parser = PDFParser("../../ornek_srs.pdf")
 
     parsed = parser.parse_pdf()
     print(f"Sayfa sayısı: {parsed['page_count']}")

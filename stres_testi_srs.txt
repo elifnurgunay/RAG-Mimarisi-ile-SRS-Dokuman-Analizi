@@ -1,0 +1,18 @@
+
+REQ-001: Sistem verileri 30 gun boyunca yedeklemelidir.
+REQ-002: Sistem cok hizli calismalidir.
+REQ-003: Kullanicilar sisteme giris yapabilmelidir.
+REQ-004: Sistem sadece sirket ici kapali agda calismalidir.
+REQ-005: Tum veriler AES-256 algoritmasi ile sifrelenmelidir.
+REQ-006: Uygulama sadece iOS platformunda calismalidir.
+REQ-007: Sifreler en az 8 karakter olmalidir.
+REQ-010: Veriler 1 hafta sonra kalici olarak silinmelidir.
+REQ-012: Veriler hicbir sekilde sifrelenmemeli ve acik tutulmalidir.
+REQ-013: Sistem genel internet erisimine acik olmalidir.
+REQ-014: Raporlar sadece Excel formatinda alinmalidir.
+REQ-015: Sistem ayni anda maksimum 10 kullaniciyi desteklemelidir.
+REQ-016: Sistem ayni anda en az 1000 kullaniciyi desteklemelidir.
+REQ-017: Arayuz temasi tamamen mavi olmalidir.
+REQ-018: Arayuz temasi tamamen kirmizi olmalidir.
+REQ-019: Uygulama sadece Android cihazlarda calismalidir.
+REQ-020: Raporlar sadece PDF formatinda alinmalidir.

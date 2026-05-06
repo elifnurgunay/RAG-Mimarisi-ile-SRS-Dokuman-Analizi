@@ -7,7 +7,7 @@ ROOT_DIR = Path(__file__).resolve().parent
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from pdf_text_extractor import extract_pdf_text, parse_requirements
+from src.parsing.pdf_parser import PDFParser
 
 
 def clean_and_save_requirements(pdf_path: str, output_path: str = "cleaned_requirements.json"):
@@ -19,14 +19,13 @@ def clean_and_save_requirements(pdf_path: str, output_path: str = "cleaned_requi
         output_path (str): Çıktı JSON dosyasının adı (varsayılan: cleaned_requirements.json)
     """
     try:
-        # PDF'den metni çıkar
-        text = extract_pdf_text(pdf_path)
-        if not text or not text.strip():
-            print(f"Hata: {pdf_path} dosyasından metin çıkarılamadı.")
-            return
+        # PDFParser başlat
+        parser = PDFParser(pdf_path)
         
-        # Gereksinimleri parse et
-        requirements = parse_requirements(text)
+        # PDF'i parse et
+        parsed_data = parser.parse_pdf()
+        requirements = parsed_data.get("requirements", [])
+        
         if not requirements:
             print("Uyarı: PDF içinde REQ-xxx biçiminde hiçbir gereksinim bulunamadı.")
             return

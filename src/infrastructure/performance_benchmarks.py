@@ -1,8 +1,8 @@
 import time
 import logging
 from typing import List, Dict, Any, Callable
-from vector_db_manager import VectorDBManager
-from search_optimization import SearchOptimizer
+from src.core.retriever import SRSRetriever
+from src.infrastructure.search_optimization import SearchOptimizer
 import numpy as np
 
 logger = logging.getLogger(__name__)
@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 class PerformanceBenchmarks:
     """Benchmarking tools for vector database and search optimization performance."""
 
-    def __init__(self, db_manager: VectorDBManager, search_optimizer: SearchOptimizer):
+    def __init__(self, db_manager: SRSRetriever, search_optimizer: SearchOptimizer):
         self.db_manager = db_manager
         self.search_optimizer = search_optimizer
 
