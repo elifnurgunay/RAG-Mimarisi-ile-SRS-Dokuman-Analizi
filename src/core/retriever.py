@@ -25,10 +25,11 @@ from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_qdrant import QdrantVectorStore
 
 from src.parsing.chunking_strategy import ReqChunkingStrategy
+from src.infrastructure.search_optimization import SearchOptimizer
 
 # .env dosyasını yükle
 env_path = Path(__file__).resolve().parent.parent / ".env"
-load_dotenv(env_path)
+load_dotenv(env_path, override=True)
 
 class SRSRetriever:
     def __init__(self, collection_name="elif_logic_collection"):
@@ -37,6 +38,7 @@ class SRSRetriever:
         self.url = os.getenv("QDRANT_URL")
         self.api_key = os.getenv("QDRANT_API_KEY")
         self.vector_store = None
+        self.optimizer = SearchOptimizer() # Hibrit arama için optimizer ekliyoruz
 
     def load_and_index_pdf(self, pdf_path):
         """PDF'i yükler, parçalar ve Qdrant'a indexler."""
@@ -120,7 +122,10 @@ class SRSRetriever:
         return self.vector_store.similarity_search("", k=100)
 
     def get_similar_requirements(self, query, top_k=3):
-        """Verilen sorguya en benzer gereksinimleri getirir."""
+        """
+        Hibrit Arama: Verilen sorguya en benzer gereksinimleri 
+        BM25 ve Vektör skoru harmanlayarak getirir.
+        """
         if not self.vector_store:
             self.vector_store = QdrantVectorStore.from_existing_collection(
                 embedding=self.embeddings,
@@ -130,10 +135,38 @@ class SRSRetriever:
                 prefer_grpc=False
             )
 
-        print(f"Sorgu yapiliyor: '{query}'")
-        results = self.vector_store.similarity_search(query, k=top_k)
+        print(f"Hibrit sorgu yapiliyor: '{query}'")
         
-        return results
+        # 1. Aşama: Vektör veritabanından geniş bir aday listesi çek (Dense Search)
+        # top_k'dan daha fazla çekiyoruz ki BM25 ile rerank yapabilelim.
+        candidates = self.vector_store.similarity_search(query, k=top_k * 4)
+        
+        if not candidates:
+            return []
+
+        # 2. Aşama: BM25 + Dense Harmanlama (Hybrid Reranking)
+        # Aday metinlerini listeye çevir
+        candidate_texts = [doc.page_content for doc in candidates]
+        
+        # SearchOptimizer kullanarak hibrit skorları hesapla
+        # hybrid_search metodu indeksleri ve skorları döndürür.
+        hybrid_results = self.optimizer.hybrid_search(
+            query=query,
+            documents=candidate_texts,
+            top_k=top_k,
+            bm25_weight=0.4, # Kelime eşleşmesi ağırlığı
+            dense_weight=0.6  # Anlamsal yakınlık ağırlığı
+        )
+        
+        # 3. Aşama: Hibrit sonuçları Document objelerine geri dönüştür
+        final_docs = []
+        for idx, score in hybrid_results:
+            doc = candidates[idx]
+            # Skoru metadata'ya ekle (opsiyonel)
+            doc.metadata["hybrid_score"] = score
+            final_docs.append(doc)
+            
+        return final_docs
 
 if __name__ == "__main__":
     retriever = SRSRetriever()

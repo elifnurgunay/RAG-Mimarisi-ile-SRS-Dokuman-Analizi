@@ -46,35 +46,45 @@ class SRSWorkflow:
             print("HATA: Rapor oluşturulamadı.")
             return None
 
-        # 4. Çapraz Çelişki Kontrolü (RAG) - Daha kapsamlı hale getirildi
+        # 4. Çapraz Çelişki Kontrolü (RAG) - Toplu İşleme ile Optimize Edildi
         cross_check_results = []
-        # Her bulunan hata için değil, her gereksinim için potansiyel çelişki ara
-        for chunk in all_chunks:
+        processed_pairs = set() # Aynı çiftleri tekrar kontrol etmemek için
+        
+        # Sadece REQ içeren chunkları filtrele
+        req_chunks = [c for c in all_chunks if "REQ-" in c.page_content]
+        
+        print(f"Toplam {len(req_chunks)} gereksinim maddesi için çapraz kontrol yapılıyor...")
+        
+        for i, chunk in enumerate(req_chunks):
             req_content = chunk.page_content
-            req_id = chunk.metadata.get("req_id", "ID-YOK")
+            req_id = chunk.metadata.get("req_id", f"ID-{i}")
             
-            # Sadece REQ içeren chunklar için arama yap (performans için)
-            if "REQ-" in req_content:
-                # Bu madde ile çelişebilecek maddeleri ara
-                # (Kendi hariç en yakınları getir)
-                similar_docs = self.retriever.get_similar_requirements(req_content, top_k=3)
+            # Bu madde ile en benzer 3 maddeyi getir
+            similar_docs = self.retriever.get_similar_requirements(req_content, top_k=3)
+            
+            # Adayları topla (kendisi hariç)
+            candidates = []
+            for doc in similar_docs:
+                if doc.page_content != req_content:
+                    candidates.append(doc.page_content)
+            
+            if candidates:
+                # Toplu çelişki kontrolü (Tek API çağrısı)
+                conflicts = self.detector.batch_conflict_check(req_content, candidates)
                 
-                for doc in similar_docs:
-                    # Kendisiyle karşılaştırma yapma
-                    if doc.page_content == req_content:
-                        continue
-                        
-                    conflict = self.detector.analyze_conflict(req_content, doc.page_content)
-                    if conflict.get("conflict"):
-                        # Eğer bu çelişki zaten raporlanmadıysa ekle
-                        is_already_added = any(c["req_id"] == req_id and c["conflict_with_text"][:50] == doc.page_content[:50] for c in cross_check_results)
-                        if not is_already_added:
-                            cross_check_results.append({
-                                "req_id": req_id,
-                                "conflict_with_text": doc.page_content[:150],
-                                "reason": conflict.get("reason"),
-                                "severity": conflict.get("severity")
-                            })
+                for conflict in conflicts:
+                    # Raporlanacak formatta hazırla
+                    cross_check_results.append({
+                        "req_id": req_id,
+                        "conflict_with_text": conflict.get("conflict_with_text", ""),
+                        "reason": conflict.get("reason", "Çelişki tespit edildi."),
+                        "severity": conflict.get("severity", "Medium")
+                    })
+            
+            # Her 5 maddede bir kısa bekleme (API sağlığı için)
+            if i % 5 == 0:
+                import time
+                time.sleep(1)
         
         return {
             "report": report,

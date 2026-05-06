@@ -24,7 +24,7 @@ from langchain_core.output_parsers import JsonOutputParser
 
 # .env yükle
 env_path = Path(__file__).resolve().parent.parent / ".env"
-load_dotenv(env_path)
+load_dotenv(env_path, override=True)
 
 class ConflictDetector:
     def __init__(self):
@@ -72,24 +72,63 @@ Yanıtı SADECE şu JSON formatında ver:
         except Exception as e:
             return {"conflict": False, "reason": f"Hata: {str(e)}", "severity": "None"}
 
-    def evaluate_relationships(self, analysis_results: list) -> list:
-        """Analiz sonuçları arasındaki ilişkileri değerlendirir (çapraz kontrol)."""
-        cross_check_results = []
+    def batch_conflict_check(self, source_req: str, candidates: list) -> list:
+        """
+        Bir gereksinimi birden fazla aday gereksinimle tek bir API çağrısında karşılaştırır.
+        Token ve RPM tasarrufu sağlar.
+        """
+        if not candidates:
+            return []
+
+        candidates_text = ""
+        for i, cand in enumerate(candidates):
+            candidates_text += f"\n--- ADAY {i+1} ---\n{cand}\n"
+
+        prompt_template = """
+Sen uzman bir Yazılım Gereksinim Analistisin. Aşağıdaki "ANA GEREKSİNİM" ile "ADAY LİSTESİ"ndeki maddeleri karşılaştır.
+Ana gereksinim ile adaylar arasında herhangi bir ÇELİŞKİ, TUTARSIZLIK veya MANTIKSAL ZITLIK olup olmadığını belirle.
+
+**ANA GEREKSİNİM:**
+{source_req}
+
+**ADAY LİSTESİ:**
+{candidates_text}
+
+**Analiz Kuralları:**
+1. Sadece "ANA GEREKSİNİM" ile çelişen adayları raporla.
+2. Nicel değer (sayı, süre, limit) farklarına özellikle dikkat et.
+3. Her çelişkiyi ayrı bir obje olarak JSON listesi içinde döndür.
+
+Yanıtı SADECE şu JSON formatında ver (eğer çelişki yoksa boş liste döndür):
+[
+    {{
+        "conflict_with_text": "çelişen aday metninin ilk 50 karakteri",
+        "reason": "çelişki nedeni",
+        "severity": "Low/Medium/High"
+    }}
+]
+"""
+        import time
+        import random
         
-        # Her analiz sonucu için potansiyel çelişkileri kontrol et
-        for i, item1 in enumerate(analysis_results):
-            req_id1 = item1["req_id"]
-            analysis1 = item1["analysis"]
-            
-            # analysis1'den issues çek, ama basit olarak text kullan.
-            # Mevcut kodda req_content yok, belki item1["text"] ekle, ama yok.
-            # Basit implementasyon: boş döndür veya mevcut mantık.
-            
-            # Mevcut workflow'daki cross-check mantığını implement et.
-            # Ama analysis_results'ta text yok, sadece analysis.
-            # Belki boş döndür.
-            
-        return cross_check_results
+        prompt = ChatPromptTemplate.from_template(prompt_template)
+        chain = prompt | self.llm | self.parser
+
+        max_retries = 3
+        for retry in range(max_retries):
+            try:
+                results = chain.invoke({
+                    "source_req": source_req,
+                    "candidates_text": candidates_text
+                })
+                return results if isinstance(results, list) else []
+            except Exception as e:
+                if "429" in str(e) or "rate_limit" in str(e).lower():
+                    time.sleep((2 ** retry) * 5 + random.random())
+                else:
+                    print(f"!!! Çapraz Kontrol Hatası: {e}")
+                    break
+        return []
 
 
 if __name__ == "__main__":

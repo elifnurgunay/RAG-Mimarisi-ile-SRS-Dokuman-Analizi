@@ -1,5 +1,20 @@
+import sys
 import os 
 from typing import List, Literal
+
+# --- SIHIRLI DOKUNUŞ V2: Python 3.14 Yaması ---
+class DummyClass:
+    pass
+class MockModule:
+    def __getattr__(self, name): return DummyClass  
+    def __call__(self, *args, **kwargs): return DummyClass()
+sys.modules['pydantic.v1'] = MockModule()
+sys.modules['pydantic.v1.errors'] = MockModule()
+sys.modules['pydantic.v1.main'] = MockModule()
+sys.modules['pydantic.v1.fields'] = MockModule()
+sys.modules['pydantic.v1.validators'] = MockModule()
+# --------------------------------------------------
+
 from pydantic import BaseModel, Field
 from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
@@ -7,7 +22,7 @@ from langchain_core.output_parsers import JsonOutputParser
 from dotenv import load_dotenv
 
 # .env dosyasındaki API anahtarını yükler
-load_dotenv()
+load_dotenv(override=True)
 
 # --- VERİ ŞEMASI (PYDANTIC) ---
 class RequirementIssue(BaseModel):
@@ -51,95 +66,96 @@ class SRSAnalyzer:
 
     def analyze_text(self, srs_text: str, doc_name: str = "Doküman", metadata: dict = None) -> AnalysisReport:
         """
-        Büyük metinleri parçalara ayırarak analiz eder ve sonuçları birleştirir.
-        (Token limitini aşmamak için batch processing yapar)
+        Gereksinimleri mantıksal batch'lere bölerek analiz eder.
+        Rate limit yönetimi ve toplu işleme ile API maliyetini düşürür.
         """
-        # Yaklaşık 4000 karakterlik parçalara böl (Daha güvenli sınır)
-        max_chars = 4000
-        text_chunks = [srs_text[i:i+max_chars] for i in range(0, len(srs_text), max_chars)]
+        # Metni satırlara böl (Gereksinim bazlı batching için)
+        lines = [line.strip() for line in srs_text.split("\n") if line.strip()]
+        
+        # Her batch'te yaklaşık 5-10 gereksinim olacak şekilde grupla (Max 5000 karakter)
+        batches = []
+        current_batch = []
+        current_length = 0
+        
+        for line in lines:
+            if current_length + len(line) > 5000 and current_batch:
+                batches.append("\n".join(current_batch))
+                current_batch = []
+                current_length = 0
+            current_batch.append(line)
+            current_length += len(line)
+        
+        if current_batch:
+            batches.append("\n".join(current_batch))
         
         all_issues = []
         import time
+        import random
         
         prompt_template = """
-Sen dünya çapında tanınan kıdemli bir Yazılım Gereksinim Mühendisisin. Görevin, verilen SRS (Yazılım Gereksinim Belgesi) metnini ISO/IEC/IEEE 29148 standartlarına göre titizlikle analiz etmektir.
+Sen kıdemli bir Yazılım Gereksinim Mühendisisin. Aşağıdaki SRS metin parçalarını ISO/IEC/IEEE 29148 standartlarına göre analiz et.
 
-Analiz Kriterlerin:
-1. **Ambiguity (Belirsizlik)**: "Hızlı", "esnek", "yeterli", "kullanıcı dostu", "gerektiğinde" gibi sübjektif ve ölçülemeyen ifadeler. Her gereksinim tek bir şekilde yorumlanabilmelidir.
-2. **Inconsistency (Çelişki)**: Bir gereksinimin başka bir gereksinimle, teknik kısıtla veya iş mantığıyla çelişmesi.
-3. **Incompleteness (Eksiklik)**: Gereksinimde 'kim', 'ne zaman', 'nerede' veya 'nasıl' sorularından birinin cevapsız kalması. Özellikle aktör (sistem mi, kullanıcı mı?) belirtilmemiş maddeler.
-4. **Testability (Test Edilebilirlik)**: Gereksinimin doğrulanması için somut bir test kriterinin yazılamaması. Sayısal değer içermeyen performans veya kapasite hedefleri.
-5. **Redundancy (Gereksiz Tekrar)**: Aynı gereksinimin farklı kelimelerle birden fazla kez ifade edilmesi.
+**Analiz Kriterleri:** Belirsizlik (Ambiguity), Çelişki (Inconsistency), Eksiklik (Incompleteness), Test Edilebilirlik (Testability).
 
-Kurallar:
-- Metni SATIR SATIR incele. 
-- Sadece bariz hataları değil, ileride geliştirme ekibine sorun çıkarabilecek potansiyel "gri alanları" da raporla.
-- Sorun tespit ettiysen teknik, profesyonel ve yapıcı bir dil kullan.
-- 'suggestion' kısmında mutlaka bu gereksinimin nasıl daha iyi yazılabileceğine dair somut bir örnek ver.
-- overall_quality_score (0-100): Dokümanın genel kalitesini yansıtmalıdır. Kritik hatalar puanı hızla düşürmelidir.
-
-GÖREVİN: Sana verilen gereksinim metnini analiz et.
-
-ÖNEMLİ İZLENEBİLİRLİK KURALI:
-Tespit ettiğin her hata, çelişki veya bulgu için JSON çıktısında MUTLAKA bir 'req_id' belirtmek zorundasın. 
-1. Eğer metnin içinde açık bir gereksinim ID'si (örn: REQ-001) varsa onu kullan.
-2. Eğer açık bir ID yoksa, sana sağlanan metadatadaki 'req_id' değerini (örn: AUTO-1-5) kullan.
-3. Asla 'ID-YOK', 'Bilinmiyor' veya 'Yok' gibi jenerik ifadeler kullanma. 
-4. 'req_id' alanını asla boş bırakma.
+**Görevin:** Verilen metindeki TÜM hataları tespit et ve her biri için somut düzeltme önerisi sun.
+**Önemli:** Eğer bir satırda birden fazla hata varsa hepsini raporla. 'req_id' alanını mutlaka doldur (metinde yoksa metadatayı kullan).
 
 Analiz Edilecek Metin:
 {chunk_text}
 
-Metadata:
-{metadata}
+Metadata: {metadata}
 
-Çıktıyı SADECE şu JSON formatında ver:
+Çıktıyı SADECE JSON formatında ver:
 {format_instructions}
 """
-        
         prompt = ChatPromptTemplate.from_template(prompt_template).partial(
             format_instructions=self.parser.get_format_instructions()
         )
-        
         chain = prompt | self.llm
 
-        for i, chunk in enumerate(text_chunks):
-            try:
-                print(f"--- [BATCH {i+1}/{len(text_chunks)}] LLM Analizi Yapılıyor... ---")
-                raw_output = chain.invoke({"chunk_text": chunk, "metadata": metadata or {}})
-                parsed_data = self.parser.parse(raw_output.content)
+        for i, chunk in enumerate(batches):
+            max_retries = 3
+            retry_count = 0
+            
+            while retry_count < max_retries:
+                try:
+                    print(f"--- [BATCH {i+1}/{len(batches)}] Analiz Ediliyor (Deneme {retry_count+1})... ---")
+                    raw_output = chain.invoke({"chunk_text": chunk, "metadata": metadata or {}})
+                    parsed_data = self.parser.parse(raw_output.content)
 
-                # Pydantic objesi veya dict kontrolü
-                issues = []
-                if isinstance(parsed_data, dict):
-                    issues = parsed_data.get("issues", [])
-                elif hasattr(parsed_data, "issues"):
-                    issues = parsed_data.issues
-                
-                # Her issue'yu RequirementIssue modeline çevir (güvenlik için)
-                for issue_data in issues:
-                    if isinstance(issue_data, dict):
-                        all_issues.append(RequirementIssue(**issue_data))
+                    issues = []
+                    if isinstance(parsed_data, dict):
+                        issues = parsed_data.get("issues", [])
+                    elif hasattr(parsed_data, "issues"):
+                        issues = parsed_data.issues
+                    
+                    for issue_data in issues:
+                        if isinstance(issue_data, dict):
+                            all_issues.append(RequirementIssue(**issue_data))
+                        else:
+                            all_issues.append(issue_data)
+                    
+                    # Başarılı ise döngüden çık
+                    break
+                    
+                except Exception as e:
+                    if "rate_limit_exceeded" in str(e).lower() or "429" in str(e):
+                        wait_time = (2 ** retry_count) * 5 + random.random()
+                        print(f"⚠️ Hız sınırına takılındı. {wait_time:.1f} sn bekleniyor...")
+                        time.sleep(wait_time)
+                        retry_count += 1
                     else:
-                        all_issues.append(issue_data)
-                        
-            except Exception as e:
-                print(f"!!! [BATCH {i+1}] HATASI: {e}")
-                
-            # RPM limitine takılmamak için kısa bir mola
-            if len(text_chunks) > 1:
-                time.sleep(1)
+                        print(f"!!! [BATCH {i+1}] HATASI: {e}")
+                        break
+            
+            # Batch'ler arası kısa bekleme (Groq RPM koruması)
+            time.sleep(2)
 
-        # Raporu birleştir
         report_obj = AnalysisReport(
             document_name=doc_name,
-            overall_quality_score=0,
+            overall_quality_score=calculate_score(all_issues),
             issues=all_issues
         )
-        
-        # Skoru en son tüm hatalar üzerinden hesapla
-        report_obj.overall_quality_score = calculate_score(report_obj.issues)
-        
         return report_obj
 
 # --- TEST ETME ---
