@@ -22,12 +22,12 @@ class ReqChunkingStrategy:
 
     def __init__(
         self,
-        req_pattern: str = r"(REQ-\d{3,})",
+        req_pattern: str = r"(REQ\s*[-.]?\s*\d+|GEREKSINIM\s*[-.]?\s*\d+|R\s*[-._]?\s*\d+)",
         fallback_chunk_size: int = 1000,
         fallback_overlap: int = 200,
     ):
         self.req_pattern = re.compile(req_pattern, re.IGNORECASE)
-        self.fallback_splitter = RecursiveCharacterTextSplitter(
+        self.text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=fallback_chunk_size,
             chunk_overlap=fallback_overlap,
         )
@@ -59,34 +59,39 @@ class ReqChunkingStrategy:
             return Document(page_content=page_content, metadata=metadata)
         return {"page_content": page_content, "metadata": metadata}
 
-    def chunk_document(self, document: Any) -> List[Any]:
-        """Tek bir dokümanı REQ-ID bazında chunk'lar veya fallback yapar."""
-        req_chunks = self.chunk_text(document.page_content)
-        if not req_chunks:
-            return self.fallback_splitter.split_documents([document])
+    def chunk_document(self, document_text, base_metadata):
+        # Metin parçalama işlemini gerçekleştir
+        raw_chunks = self.text_splitter.split_text(document_text)
+        processed_chunks = []
 
-        chunk_docs = []
-        for index, req_chunk in enumerate(req_chunks):
-            metadata = dict(getattr(document, "metadata", {}) or {})
-            metadata.update(
-                {
-                    "req_id": req_chunk["Requirement_ID"],
-                    "chunk_index": index,
-                }
-            )
-            chunk_docs.append(
-                self._build_document(
-                    page_content=req_chunk["Content"],
-                    metadata=metadata,
-                )
-            )
+        for index, chunk_text in enumerate(raw_chunks):
+            # PDF'den gelen sayfa numarası vb. metadatayı korumak için kopyala
+            chunk_metadata = base_metadata.copy() 
+            
+            # Genişletilmiş regex ile ID ara
+            match = self.req_pattern.search(chunk_text)
+            
+            if match:
+                # Gerçek ID bulunduysa metadata içine kaydet
+                chunk_metadata["req_id"] = match.group(1).strip()
+            else:
+                # ID bulunamazsa Fallback: Sanal ID (AUTO-{sayfa_no}-{sıra_no}) üret
+                page_no = chunk_metadata.get("page", "UNKNOWN")
+                chunk_metadata["req_id"] = f"AUTO-{page_no}-{index + 1}"
 
-        return chunk_docs
+            # Parçayı ve güncellenmiş metadatayı listeye ekle
+            processed_chunks.append({
+                "text": chunk_text,
+                "metadata": chunk_metadata
+            })
+
+        return processed_chunks
 
     def chunk_documents(self, documents: List[Any]) -> List[Any]:
         """Belgeleri REQ-ID tabanlı parçalara ayırır."""
         chunked_documents = []
         for document in documents:
-            chunked_documents.extend(self.chunk_document(document))
-
+            chunks = self.chunk_document(document.page_content, document.metadata)
+            for chunk in chunks:
+                chunked_documents.append(self._build_document(chunk["text"], chunk["metadata"]))
         return chunked_documents

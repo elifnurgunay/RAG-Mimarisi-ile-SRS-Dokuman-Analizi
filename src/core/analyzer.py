@@ -45,7 +45,11 @@ class SRSAnalyzer:
         )
         self.parser = JsonOutputParser(pydantic_object=AnalysisReport)
 
-    def analyze_text(self, srs_text: str, doc_name: str = "Doküman") -> AnalysisReport:
+    def run_analysis(self, chunk_text: str, metadata: dict = None) -> AnalysisReport:
+        """Tek bir chunk için analiz çalıştırır."""
+        return self.analyze_text(chunk_text, doc_name="Chunk", metadata=metadata)
+
+    def analyze_text(self, srs_text: str, doc_name: str = "Doküman", metadata: dict = None) -> AnalysisReport:
         """
         Büyük metinleri parçalara ayırarak analiz eder ve sonuçları birleştirir.
         (Token limitini aşmamak için batch processing yapar)
@@ -70,13 +74,24 @@ Analiz Kriterlerin:
 Kurallar:
 - Metni SATIR SATIR incele. 
 - Sadece bariz hataları değil, ileride geliştirme ekibine sorun çıkarabilecek potansiyel "gri alanları" da raporla.
-- Her hata için mutlaka req_id belirt (Metinde ID yoksa 'ID-YOK' yaz).
 - Sorun tespit ettiysen teknik, profesyonel ve yapıcı bir dil kullan.
 - 'suggestion' kısmında mutlaka bu gereksinimin nasıl daha iyi yazılabileceğine dair somut bir örnek ver.
 - overall_quality_score (0-100): Dokümanın genel kalitesini yansıtmalıdır. Kritik hatalar puanı hızla düşürmelidir.
 
---- ANALİZ EDİLECEK METİN PARÇASI ---
-{srs_text}
+GÖREVİN: Sana verilen gereksinim metnini analiz et.
+
+ÖNEMLİ İZLENEBİLİRLİK KURALI:
+Tespit ettiğin her hata, çelişki veya bulgu için JSON çıktısında MUTLAKA bir 'req_id' belirtmek zorundasın. 
+1. Eğer metnin içinde açık bir gereksinim ID'si (örn: REQ-001) varsa onu kullan.
+2. Eğer açık bir ID yoksa, sana sağlanan metadatadaki 'req_id' değerini (örn: AUTO-1-5) kullan.
+3. Asla 'ID-YOK', 'Bilinmiyor' veya 'Yok' gibi jenerik ifadeler kullanma. 
+4. 'req_id' alanını asla boş bırakma.
+
+Analiz Edilecek Metin:
+{chunk_text}
+
+Metadata:
+{metadata}
 
 Çıktıyı SADECE şu JSON formatında ver:
 {format_instructions}
@@ -91,7 +106,7 @@ Kurallar:
         for i, chunk in enumerate(text_chunks):
             try:
                 print(f"--- [BATCH {i+1}/{len(text_chunks)}] LLM Analizi Yapılıyor... ---")
-                raw_output = chain.invoke({"srs_text": chunk})
+                raw_output = chain.invoke({"chunk_text": chunk, "metadata": metadata or {}})
                 parsed_data = self.parser.parse(raw_output.content)
 
                 # Pydantic objesi veya dict kontrolü
