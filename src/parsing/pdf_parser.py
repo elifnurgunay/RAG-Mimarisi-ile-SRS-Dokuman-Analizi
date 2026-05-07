@@ -3,7 +3,9 @@ import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from src.config import REQUIREMENT_ID_PATTERN
+from src.utils.logging_utils import get_logger
 
+logger = get_logger(__name__)
 
 class PDFParserError(Exception):
     pass
@@ -30,7 +32,7 @@ class PDFParser:
                     pages_text.append(page.get_text("text") or "")
             return "\n".join(pages_text)
         except Exception as exc:
-            print(f"[ERROR] PDF metin çıkarma hatası: {exc}")
+            logger.error("PDF metin çıkarma hatası | hata=%s", exc)
             return None
 
     def extract_pages(self) -> List[Dict[str, Any]]:
@@ -51,7 +53,7 @@ class PDFParser:
                         }
                     )
         except Exception as exc:
-            print(f"[ERROR] PDF sayfa çıkarma hatası: {exc}")
+           logger.error("PDF sayfa çıkarma hatası | hata=%s", exc)
         return pages
 
     def _extract_tables_from_page(self, page: fitz.Page) -> List[Dict[str, Any]]:
@@ -97,7 +99,7 @@ class PDFParser:
 
             return tables
         except Exception as exc:
-            print(f"[ERROR] Tablo çıkarma hatası: {exc}")
+           logger.error("Tablo çıkarma hatası | hata=%s", exc)
             return []
 
     def _normalize_text(self, text: str) -> str:

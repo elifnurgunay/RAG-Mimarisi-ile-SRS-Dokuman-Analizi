@@ -96,11 +96,20 @@ Yanıtını SADECE AnalysisReport şemasına uygun JSON formatında ver.
         for i, chunk in enumerate(batches):
             max_retries = 3
             retry_count = 0
-            
+
             while retry_count < max_retries:
                 try:
-                    print(f"--- [BATCH {i+1}/{len(batches)}] Analiz Ediliyor (Deneme {retry_count+1})... ---")
-                    raw_output = chain.invoke({"chunk_text": chunk, "metadata": metadata or {}})
+                    logger.info(
+                        "Batch analiz ediliyor | batch=%d/%d | deneme=%d",
+                        i + 1,
+                        len(batches),
+                        retry_count + 1,
+                    )
+
+                    raw_output = chain.invoke({
+                        "chunk_text": chunk,
+                        "metadata": metadata or {},
+                    })
                     parsed_data = self.parser.parse(raw_output.content)
 
                     issues = []
@@ -108,28 +117,31 @@ Yanıtını SADECE AnalysisReport şemasına uygun JSON formatında ver.
                         issues = parsed_data.get("issues", [])
                     elif hasattr(parsed_data, "issues"):
                         issues = parsed_data.issues
-                    
+
                     for issue_data in issues:
                         if isinstance(issue_data, dict):
                             all_issues.append(RequirementIssue(**issue_data))
                         else:
                             all_issues.append(issue_data)
-                    
-                    # Başarılı ise döngüden çık
+
                     break
-                    
+
                 except Exception as e:
                     if "rate_limit_exceeded" in str(e).lower() or "429" in str(e):
                         wait_time = (2 ** retry_count) * 5 + random.random()
-                        print(f"⚠️ Hız sınırına takılındı. {wait_time:.1f} sn bekleniyor...")
+                        logger.warning("Rate limit | bekleme=%.1f sn", wait_time)
                         time.sleep(wait_time)
                         retry_count += 1
                     else:
-                        print(f"!!! [BATCH {i+1}] HATASI: {e}")
+                        logger.error(
+                            "Batch analizi hatası | batch=%d | hata=%s",
+                            i + 1,
+                            e,
+                        )
                         break
-            
-            # Batch'ler arası kısa bekleme (Groq RPM koruması)
+
             time.sleep(2)
+                    
 
         report_obj = AnalysisReport(
             document_name=doc_name,

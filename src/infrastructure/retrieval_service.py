@@ -8,7 +8,9 @@ from src.infrastructure.embedding_service import EmbeddingService
 from src.infrastructure.vector_store import VectorStoreService
 from src.infrastructure.search_optimization import SearchOptimizer
 from src.config import QDRANT_COLLECTION_NAME, REQUIREMENT_ID_PATTERN
+from src.utils.logging_utils import get_logger
 
+logger = get_logger(__name__)
 
 class RetrievalService:
     def __init__(self, collection_name: str = QDRANT_COLLECTION_NAME):
@@ -32,7 +34,7 @@ class RetrievalService:
 
     def load_and_index_pdf(self, pdf_path: str) -> bool:
         if not os.path.exists(pdf_path):
-            print(f"Hata: {pdf_path} dosyası bulunamadı!")
+            logger.error("Dosya bulunamadı | path=%s", pdf_path)
             return False
 
         documents = self.pdf_loader.load(pdf_path)
@@ -44,11 +46,11 @@ class RetrievalService:
         ]
 
         if not chunks:
-            print("Uyarı: Indexlenecek geçerli metin bulunamadı!")
+            logger.warning("Indexlenecek geçerli metin bulunamadı.")
             return False
 
         self.vector_service.create_from_documents(chunks, force_recreate=True)
-        print(f"Indexleme tamamlandı. Chunk sayısı: {len(chunks)}")
+        logger.info("Indexleme tamamlandı | chunk_sayısı=%d", len(chunks))
         return True
 
     def add_structured_data(self, requirements_json: list):

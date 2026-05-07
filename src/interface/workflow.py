@@ -1,15 +1,18 @@
 import os
 import sys
-from pathlib import Path
-from src.utils.text_utils import clean_noise, split_into_batches
-from src.schemas.report import AnalysisReport
-from src.core.analyzer import calculate_score
-# Yol ayarı
+
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
 from src.core.retriever import SRSRetriever
-from src.core.analyzer import SRSAnalyzer
+from src.core.analyzer import SRSAnalyzer, calculate_score
 from src.core.conflict_detector import ConflictDetector
+from src.core.report_builder import ReportBuilder
+from src.schemas.report import AnalysisReport
+from src.utils.text_utils import clean_noise, split_into_batches
+from src.utils.logging_utils import get_logger
+
+logger = get_logger(__name__)
+
 
 class SRSWorkflow:
     def __init__(self):
@@ -18,58 +21,77 @@ class SRSWorkflow:
         self.detector = ConflictDetector()
 
     def run_full_analysis(self, pdf_path: str):
-        print(f"--- İş akışı başladı: {pdf_path} ---")
-        
-        # 1. PDF İndeksleme
+        logger.info("İş akışı başladı | pdf=%s", pdf_path)
+
         if not self.retriever.load_and_index_pdf(pdf_path):
-            print("HATA: PDF okunamadı.")
+            logger.error("PDF okunamadı | pdf=%s", pdf_path)
             return None
 
-        # 2. Veritabanından tüm metni çek (Analiz için)
         all_chunks = self.retriever.get_all_documents()
-        
+
         if not all_chunks:
-            print("HATA: Veritabanından veri çekilemedi.")
+            logger.error("Veritabanından veri çekilemedi.")
             return None
-            
-        # Chunkları sayfa/index sırasına göre dizmek iyi olabilir (metadata varsa)
+
         try:
-            all_chunks.sort(key=lambda x: x.metadata.get('chunk_index', 0))
-        except:
-            pass
+            all_chunks.sort(key=lambda x: x.metadata.get("chunk_index", 0))
+        except Exception as exc:
+            logger.warning("Chunk sıralama başarısız | hata=%s", exc)
 
         chunk_texts = [
-    clean_noise(doc.page_content)
-    for doc in all_chunks
-    if doc.page_content and doc.page_content.strip()
-]
-        
-        if not report:
-            print("HATA: Rapor oluşturulamadı.")
+            clean_noise(doc.page_content)
+            for doc in all_chunks
+            if doc.page_content and doc.page_content.strip()
+        ]
+
+        batches = split_into_batches(chunk_texts, max_chars=5000)
+
+        batch_reports = []
+
+        for index, batch_text in enumerate(batches, start=1):
+            logger.info("LLM analiz batch çalışıyor | batch=%d/%d", index, len(batches))
+
+            partial_report = self.analyzer.analyze_text(
+                batch_text,
+                doc_name=f"{os.path.basename(pdf_path)}::batch-{index}",
+            )
+
+            if partial_report:
+                batch_reports.append(partial_report)
+
+        if not batch_reports:
+            logger.error("Hiçbir batch raporu oluşturulamadı.")
             return None
 
-        # 4. Çapraz Çelişki Kontrolü (Global & Hızlı)
-        # Her madde için ayrı API çağrısı yapmak yerine toplu analiz yapıyoruz.
-        print("Çelişki analizi yapılıyor (Toplu Mod)...")
-        
-        # Sadece REQ içeren metinleri ve ID'lerini topla
+        merged_issues = []
+        for partial in batch_reports:
+            merged_issues.extend(partial.issues)
+
+        report = AnalysisReport(
+            document_name=os.path.basename(pdf_path),
+            overall_quality_score=calculate_score(merged_issues),
+            issues=merged_issues,
+        )
+
+        logger.info("Çelişki analizi yapılıyor | mode=global_batch")
+
         req_texts = [c.page_content for c in all_chunks if "REQ-" in c.page_content]
-        req_ids = [c.metadata.get("req_id", "UNK") for c in all_chunks if "REQ-" in c.page_content]
-        
-        # Eğer REQ-ID bazlı metin bulunamadıysa tüm metni kullan (ama sınırlı tut)
+        req_ids = [
+            c.metadata.get("req_id", "UNK")
+            for c in all_chunks
+            if "REQ-" in c.page_content
+        ]
+
         if not req_texts:
             req_texts = [c.page_content for c in all_chunks[:20]]
             req_ids = [f"ID-{i}" for i in range(len(req_texts))]
 
-        # Toplu Global Analiz (Döngü yok, tek/az çağrı)
         conflict_objects = self.detector.analyze_global_conflicts(
             requirements=req_texts,
             source_req_ids=req_ids,
-            top_k_candidates=2 # Hız için aday sayısını düşürdük
+            top_k_candidates=2,
         )
-        
-        # 5. Final Raporu İnşa Et
-        from src.core.report_builder import ReportBuilder
+
         final_report = ReportBuilder().build(report, conflict_objects)
-        
+
         return final_report
