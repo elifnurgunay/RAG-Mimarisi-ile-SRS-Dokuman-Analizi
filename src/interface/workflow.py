@@ -6,8 +6,8 @@ from pathlib import Path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
 from src.core.retriever import SRSRetriever
-from src.core.analyzer import SRSAnalyzer, calculate_score
-from src.core.logic import ConflictDetector
+from src.core.analyzer import SRSAnalyzer
+from src.core.conflict_detector import ConflictDetector
 
 class SRSWorkflow:
     def __init__(self):

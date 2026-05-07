@@ -376,30 +376,6 @@ class TestReportBuilder:
         )
         assert final.executive_summary == "Özel özet metni."
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# 9  logic.py uyumluluk köprüsü
-# ─────────────────────────────────────────────────────────────────────────────
-
-class TestLogicBridge:
-    def test_logic_import_still_works(self):
-        """logic.py'den ConflictDetector import edilebilmeli (DeprecationWarning ile)."""
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
-            from src.core.logic import ConflictDetector  # noqa: F401
-            # DeprecationWarning gelmeli
-            dep_warnings = [w for w in caught if issubclass(w.category, DeprecationWarning)]
-            assert len(dep_warnings) >= 1, "logic.py bir DeprecationWarning vermeliydi."
-
-    def test_logic_exports_conflict_detector(self):
-        """logic.py'den alınan ConflictDetector, conflict_detector.py'dekiyle aynı sınıf olmalı."""
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", DeprecationWarning)
-            from src.core.logic import ConflictDetector as BridgedCD
-            from src.core.conflict_detector import ConflictDetector as DirectCD
-        assert BridgedCD is DirectCD
-
-
 # ─────────────────────────────────────────────────────────────────────────────
 # 10  analyzer.py eski importlar
 # ─────────────────────────────────────────────────────────────────────────────

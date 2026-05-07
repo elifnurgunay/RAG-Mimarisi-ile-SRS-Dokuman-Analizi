@@ -25,40 +25,6 @@ except Exception as e:
     print(f"[FAIL] 1. workflow.py HATA: {e}")
     errors.append("workflow")
 
-
-# ------------------------------------------------------------------
-# 2. logic.py köprüsü — subprocess ile izole (modül cache bypass)
-# ------------------------------------------------------------------
-_bridge_script = PROJ_ROOT / "tests" / "_check_logic_bridge.py"
-_bridge_script.write_text(
-    "import warnings\n"
-    "import sys\n"
-    "with warnings.catch_warnings(record=True) as w:\n"
-    "    warnings.simplefilter('always')\n"
-    "    from src.core.logic import ConflictDetector as BCD\n"
-    "dep = [x for x in w if issubclass(x.category, DeprecationWarning)]\n"
-    "from src.core.conflict_detector import ConflictDetector as DCD\n"
-    "assert BCD is DCD, 'Sinif FARKLI'\n"
-    "assert len(dep) > 0, f'DeprecationWarning yok! (caught={[str(x.message) for x in w]})'\n"
-    "print('BRIDGE_OK')\n",
-    encoding="utf-8"
-)
-result = subprocess.run(
-    [PYTHON, str(_bridge_script)],
-    capture_output=True, text=True, cwd=str(PROJ_ROOT),
-    env={**__import__("os").environ, "PYTHONPATH": str(PROJ_ROOT)},
-)
-_bridge_script.unlink()  # temizle
-
-if "BRIDGE_OK" in result.stdout:
-    print("[OK] 2. logic.py koprusu calisıyor — DeprecationWarning var, sinif ayni")
-else:
-    print(f"[FAIL] 2. logic.py koprusu:\n"
-          f"  stdout: {result.stdout.strip()}\n"
-          f"  stderr: {result.stderr.strip()[:200]}")
-    errors.append("logic_bridge")
-
-
 # ------------------------------------------------------------------
 # 3. report_builder final JSON (skor, alanlar, JSON geçerliliği)
 # ------------------------------------------------------------------

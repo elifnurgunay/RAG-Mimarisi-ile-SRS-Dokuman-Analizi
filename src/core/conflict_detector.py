@@ -245,6 +245,6 @@ class ConflictDetector:
 
 
 # ---------------------------------------------------------------------------
-# Geriye dönük uyumluluk: workflow.py hâlâ `from src.core.logic import` diyebilir
+# Geriye dönük uyumluluk: workflow.py hâlâ `from  from src.core.conflict_detector import ConflictDetector import` diyebilir
 # ---------------------------------------------------------------------------
 # NOT: logic.py'yi bu dosyaya yönlendirmek için logic.py güncellenmeli.
