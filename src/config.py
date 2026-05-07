@@ -36,8 +36,9 @@ QDRANT_COLLECTION_NAME: str = os.getenv(
     "QDRANT_COLLECTION_NAME", "elif_logic_collection"
 )
 EMBEDDING_MODEL_NAME: str = os.getenv(
-    "EMBEDDING_MODEL_NAME", "all-MiniLM-L6-v2"
+    "EMBEDDING_MODEL_NAME", "BAAI/bge-m3"
 )
+
 
 # ---------------------------------------------------------------------------
 # İşleme Parametreleri

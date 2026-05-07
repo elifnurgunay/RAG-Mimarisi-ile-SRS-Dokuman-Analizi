@@ -75,7 +75,7 @@ def test_cleaned_requirements(json_file_path: str = "cleaned_requirements.json")
     
     print("✅ Tüm veri blokları 'id' ve 'text' anahtarlarını içeriyor.")
     print("🎉 Test başarılı! Veri sağlama kısmı sisteme hazır.")
-    return True
+    assert condition
 
 
 if __name__ == "__main__":
