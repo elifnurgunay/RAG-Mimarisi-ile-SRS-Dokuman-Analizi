@@ -33,7 +33,7 @@ class RAGCore:
         # Yeni HuggingFace kütüphanesini kullanıyoruz
         self.embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
         self.chunk_strategy = ReqChunkingStrategy(
-            req_pattern=r"(REQ-\d{3,})",
+            req_pattern=r"(REQ\s*[-.]?\s*\d+|GEREKSINIM\s*[-.]?\s*\d+|R\s*[-._]?\s*\d+)",
             fallback_chunk_size=1000,
             fallback_overlap=200,
         )
