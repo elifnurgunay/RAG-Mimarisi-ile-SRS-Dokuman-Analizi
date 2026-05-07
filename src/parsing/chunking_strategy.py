@@ -1,5 +1,6 @@
 import re
 from typing import Any, List, Dict, Optional
+from src.config import REQUIREMENT_ID_PATTERN
 
 try:
     from langchain_core.documents import Document
@@ -22,7 +23,7 @@ class ReqChunkingStrategy:
 
     def __init__(
         self,
-        req_pattern: str = r"(REQ\s*[-.]?\s*\d+|GEREKSINIM\s*[-.]?\s*\d+|R\s*[-._]?\s*\d+)",
+        req_pattern: str = REQUIREMENT_ID_PATTERN,
         fallback_chunk_size: int = 1000,
         fallback_overlap: int = 200,
     ):

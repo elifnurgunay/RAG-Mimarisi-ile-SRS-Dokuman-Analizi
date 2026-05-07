@@ -48,6 +48,14 @@ CHUNK_OVERLAP: int = int(os.getenv("CHUNK_OVERLAP", "50"))
 TOP_K: int = int(os.getenv("TOP_K", "3"))
 BATCH_SIZE: int = int(os.getenv("BATCH_SIZE", "5000"))  # karakter cinsinden
 
+REQUIREMENT_ID_PATTERN: str = (
+    r"\b("
+    r"(?:REQ|FR|NFR|SYS_REQ|SYSREQ|GEREKSINIM|GEREKSİNİM|R)"
+    r"[\s_\-\.]*"
+    r"\d+"
+    r")\b"
+)
+
 # ---------------------------------------------------------------------------
 # Doğrulama: Kritik anahtarlar eksikse erken uyarı ver
 # ---------------------------------------------------------------------------

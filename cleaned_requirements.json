@@ -1,0 +1,14 @@
+[
+    {
+        "id": "REQ-001",
+        "text": "REQ-001: Sistem login islemleri"
+    },
+    {
+        "id": "REQ-002",
+        "text": "REQ-002: Kullanici kayit formu"
+    },
+    {
+        "id": "REQ-003",
+        "text": "REQ-003: Raporlama modulunun calismasi"
+    }
+]

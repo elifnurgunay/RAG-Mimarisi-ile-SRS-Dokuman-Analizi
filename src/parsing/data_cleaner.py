@@ -32,11 +32,12 @@ def clean_and_save_requirements(pdf_path: str, output_path: str = "cleaned_requi
         
         # Temizlenmiş formatta dönüştür
         cleaned_requirements = []
+
         for req in requirements:
             cleaned_requirements.append({
-                "id": req["Requirement_ID"],
-                "text": req["Content"].strip()
-            })
+            "id": req["Requirement_ID"],
+            "text": req.get("text", "").strip()
+    })
         
         # UTF-8 ile JSON dosyasına kaydet
         with open(output_path, 'w', encoding='utf-8') as f:

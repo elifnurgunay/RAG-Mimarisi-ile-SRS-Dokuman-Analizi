@@ -5,6 +5,7 @@ Metin ön-işleme ve biçimlendirme için yardımcı fonksiyonlar.
 """
 import re
 from typing import List
+from src.config import REQUIREMENT_ID_PATTERN
 
 
 def normalize_whitespace(text: str) -> str:
@@ -56,13 +57,12 @@ def split_into_batches(lines: List[str], max_chars: int = 5000) -> List[str]:
 
 def extract_req_ids(text: str) -> List[str]:
     """
-    Metindeki REQ-xxx tarzı gereksinim ID'lerini çıkarır.
+    Metindeki gereksinim ID'lerini çıkarır.
 
-    Desteklenen formatlar: REQ-001, REQ001, R-1, R.1, GEREKSINIM-3
+    Desteklenen formatlar:
+    REQ-001, REQ_001, REQ001, FR-001, NFR-001, SYS_REQ_12, R-1
     """
-    pattern = r"\b(?:REQ|GEREKSINIM|R)[-.\s]?\d+\b"
-    return re.findall(pattern, text, flags=re.IGNORECASE)
-
+    return re.findall(REQUIREMENT_ID_PATTERN, text, flags=re.IGNORECASE)
 
 def is_noise_line(line: str) -> bool:
     """

@@ -7,7 +7,7 @@ from src.infrastructure.pdf_loader import PDFLoaderService
 from src.infrastructure.embedding_service import EmbeddingService
 from src.infrastructure.vector_store import VectorStoreService
 from src.infrastructure.search_optimization import SearchOptimizer
-from src.config import QDRANT_COLLECTION_NAME
+from src.config import QDRANT_COLLECTION_NAME, REQUIREMENT_ID_PATTERN
 
 
 class RetrievalService:
@@ -25,7 +25,7 @@ class RetrievalService:
 
         self.optimizer = SearchOptimizer()
         self.chunk_strategy = ReqChunkingStrategy(
-            req_pattern=r"(REQ\s*[-.]?\s*\d+|GEREKSINIM\s*[-.]?\s*\d+|R\s*[-._]?\s*\d+)",
+            req_pattern=REQUIREMENT_ID_PATTERN,
             fallback_chunk_size=500,
             fallback_overlap=50,
         )

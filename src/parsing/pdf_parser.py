@@ -2,6 +2,7 @@ import fitz  # PyMuPDF kütüphanesi bu isimle içe aktarılır
 import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+from src.config import REQUIREMENT_ID_PATTERN
 
 
 class PDFParserError(Exception):
@@ -9,7 +10,7 @@ class PDFParserError(Exception):
 
 
 class PDFParser:
-    def __init__(self, file_path: str, req_pattern: str = r"(REQ-\d{3,})"):
+    def __init__(self, file_path: str, req_pattern: str = REQUIREMENT_ID_PATTERN):
         self.file_path = Path(file_path)
         self.req_pattern = re.compile(req_pattern, re.IGNORECASE)
 
