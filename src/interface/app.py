@@ -57,11 +57,10 @@ if analyze_button:
 
         # Workflow modülünü başlat ve analizi tetikle
         workflow = SRSWorkflow()
-        results = workflow.run_full_analysis(temp_path)
+        final_report = workflow.run_full_analysis(temp_path)
         
-        if results:
-            st.session_state['analysis_report'] = results["report"]
-            st.session_state['cross_checks'] = results["cross_checks"]
+        if final_report:
+            st.session_state['analysis_report'] = final_report
             st.success("✅ Analiz ve Çapraz Kontrol Tamamlandı!")
         else:
             st.error("❌ Analiz başarısız oldu. Lütfen backend loglarını kontrol edin.")
@@ -73,20 +72,26 @@ if 'analysis_report' in st.session_state:
     
     # 1. ÜST METRİKLER
     st.subheader("📊 Yönetici Özeti")
-    m1, m2, m3 = st.columns(3)
+    
+    # Yeni eklenen yönetici özeti metni
+    if report.executive_summary:
+        st.info(report.executive_summary)
+
+    m1, m2, m3, m4 = st.columns(4)
     m1.metric("📄 Doküman", report.document_name)
-    m2.metric("📌 Durum", "Analiz Edildi")
-    m3.metric("⚠️ Bulunan Hata", len(report.issues))
+    m2.metric("⭐ Kalite Skoru", f"{report.overall_quality_score}/100")
+    m3.metric("⚠️ Kalite Hatası", len(report.quality_issues))
+    m4.metric("🔗 Çelişki", len(report.conflicts))
 
     st.markdown("---")
 
     # 2. RAG ÇELİŞKİ PANELİ (Maddeler Arası Mantıksal Zıtlıklar)
-    if st.session_state.get('cross_checks'):
-        with st.expander("🔗 RAG Çapraz Kontrol Bulguları (Çelişkiler)", expanded=True):
-            for cc in st.session_state['cross_checks']:
-                st.warning(f"**Gereksinim ID:** {cc['req_id']} | Bir çelişki tespit edildi!")
-                st.info(f"**Tespit Nedeni:** {cc['reason']}")
-                st.write(f"*Referans Metin:* {cc['conflict_with_text']}...")
+    if report.conflicts:
+        with st.expander(f"🔗 RAG Çapraz Kontrol Bulguları ({len(report.conflicts)} Çelişki)", expanded=True):
+            for cc in report.conflicts:
+                st.warning(f"**Kaynak:** {cc.source_req_id} | Çelişki tespit edildi!")
+                st.info(f"**Neden:** {cc.reason}")
+                st.write(f"*Çelişen Metin:* {cc.conflict_with_text[:300]}...")
                 st.markdown("---")
 
     # 3. İSTATİSTİKSEL ANALİZ VE GRAFİKLER
@@ -94,14 +99,11 @@ if 'analysis_report' in st.session_state:
 
     with col_left:
         st.subheader("📉 Hata Tipi Dağılımı")
-        
         all_types = ["Ambiguity", "Inconsistency", "Incompleteness", "Testability"]
 
-        if report.issues:
-            # Pydantic modellerini DataFrame'e dönüştürme
-            df_issues = pd.DataFrame([i.model_dump() for i in report.issues])
+        if report.quality_issues:
+            df_issues = pd.DataFrame([i.model_dump() for i in report.quality_issues])
             issue_counts = df_issues['type'].value_counts()
-            
             issue_counts = issue_counts.reindex(all_types, fill_value=0)
             st.bar_chart(issue_counts)
         else:
@@ -109,33 +111,32 @@ if 'analysis_report' in st.session_state:
 
     with col_right:
         st.subheader("📋 Analiz Kapsamı")
-        st.markdown("""
-        - **ISO/IEC/IEEE 29148** Standart uyumluluğu taranıyor.
-        - Maddeler arası **Anlamsal Çelişki** kontrolü yapılıyor.
-        - **Test Edilebilirlik** kriterleri denetleniyor.
+        st.markdown(f"""
+        - **ISO/IEC/IEEE 29148** Standart uyumluluğu.
+        - **Hibrit RAG** tabanlı çelişki taraması.
+        - **Groq LLM** ile anlamsal denetim.
+        - **Analiz Tarihi:** {report.analysis_timestamp[:10]}
         """)
 
     st.markdown("---")
 
     # 4. DETAYLI PROBLEM TABLOSU
-    st.subheader("📝 Tespit Edilen Problemler")
-    if report.issues:
-        df = pd.DataFrame([i.model_dump() for i in report.issues])
-        
-        df = df[["type", "problem", "suggestion"]]
-        df.columns = ["Hata Tipi", "Problem Açıklaması", "Önerilen Çözüm"]
-
+    st.subheader("📝 Tespit Edilen Kalite Problemleri")
+    if report.quality_issues:
+        df = pd.DataFrame([i.model_dump() for i in report.quality_issues])
+        df = df[["req_id", "type", "problem", "suggestion"]]
+        df.columns = ["ID", "Hata Tipi", "Problem Açıklaması", "Önerilen Çözüm"]
         st.dataframe(df, use_container_width=True, hide_index=True)
     else:
         st.balloons()
-        st.success("Harika! Dokümanda hiçbir hata tespit edilmedi.")
+        st.success("Harika! Dokümanda hiçbir kalite hatası tespit edilmedi.")
 
     # 5. DIŞA AKTARMA (JSON)
     st.sidebar.markdown("---")
     st.sidebar.download_button(
         label="📥 Raporu JSON Olarak İndir",
         data=report.model_dump_json(indent=2),
-        file_name=f"analiz_{report.document_name}.json",
+        file_name=f"srs_analiz_{report.document_name}.json",
         mime="application/json"
     )
 

@@ -1,143 +1,28 @@
-import sys
-import os
-from pathlib import Path
-from dotenv import load_dotenv
-from typing import Optional
-
-# --- SIHIRLI DOKUNUŞ V2: Python 3.14 Yaması ---
-class DummyClass:
-    pass
-class MockModule:
-    def __getattr__(self, name): return DummyClass  
-    def __call__(self, *args, **kwargs): return DummyClass()
-
-sys.modules['pydantic.v1'] = MockModule()
-sys.modules['pydantic.v1.errors'] = MockModule()
-sys.modules['pydantic.v1.main'] = MockModule()
-sys.modules['pydantic.v1.fields'] = MockModule()
-sys.modules['pydantic.v1.validators'] = MockModule()
-# --------------------------------------------------
-
-from langchain_groq import ChatGroq
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.output_parsers import JsonOutputParser
-
-# .env yükle
-env_path = Path(__file__).resolve().parent.parent / ".env"
-load_dotenv(env_path, override=True)
-
-class ConflictDetector:
-    def __init__(self):
-        self.llm = ChatGroq(
-            model="llama-3.3-70b-versatile",
-            temperature=0,
-            api_key=os.getenv("GROQ_API_KEY")
-        )
-        self.parser = JsonOutputParser()
-
-    def analyze_conflict(self, req1: str, req2: str) -> dict:
-        """İki gereksinim arasındaki çelişkiyi analiz eder."""
-        
-        prompt_template = """
-Sen uzman bir Yazılım Gereksinim Analistisin. Aşağıdaki iki gereksinim maddesini karşılaştır ve aralarında bir ÇELİŞKİ (Conflict) veya Tutarsızlık olup olmadığını belirle.
-
-**Gereksinim 1:** {req1}
-**Gereksinim 2:** {req2}
-
-**Analiz Rehberi:**
-- **Nicel Çelişkiler:** Farklı limitler, süreler veya kapasite değerleri (Örn: Biri "5 saniye", diğeri "3 saniye" diyorsa).
-- **Mantıksal Çelişkiler:** Bir madde bir aksiyona izin verirken diğerinin yasaklaması.
-- **Kapsam Çelişkileri:** Aynı süreci farklı aktörlere veya farklı koşullara atayan maddeler.
-- **Terminoloji Farkları:** Aynı kavram için farklı terimler kullanılması (Bu bir "hafif tutarsızlık" olarak raporlanabilir).
-
-**Kurallar:**
-1. Eğer doğrudan veya dolaylı bir çelişki varsa "conflict": true döndür.
-2. Sadece teknik bir fark varsa (çelişki değilse) false döndür.
-3. "reason" kısmında hangi maddelerin neden birbiriyle uyuşmadığını detaylandır.
-
-Yanıtı SADECE şu JSON formatında ver:
-{{
-    "conflict": boolean,
-    "reason": "string",
-    "severity": "Low/Medium/High"
-}}
 """
-        
-        prompt = ChatPromptTemplate.from_template(prompt_template)
-        chain = prompt | self.llm | self.parser
+src/core/logic.py — UYUMLULUK KÖPRÜSÜ (Deprecated)
 
-        try:
-            result = chain.invoke({"req1": req1, "req2": req2})
-            return result
-        except Exception as e:
-            return {"conflict": False, "reason": f"Hata: {str(e)}", "severity": "None"}
+Bu dosya kaldırılmadı; mevcut import'ların kırılmaması için
+conflict_detector.py modülüne yönlendirme yapar.
 
-    def batch_conflict_check(self, source_req: str, candidates: list) -> list:
-        """
-        Bir gereksinimi birden fazla aday gereksinimle tek bir API çağrısında karşılaştırır.
-        Token ve RPM tasarrufu sağlar.
-        """
-        if not candidates:
-            return []
+UYARI: Yeni kodda doğrudan `src.core.conflict_detector` modülünü kullanın.
+       Bu dosya bir sonraki sürümde kaldırılacaktır.
 
-        candidates_text = ""
-        for i, cand in enumerate(candidates):
-            candidates_text += f"\n--- ADAY {i+1} ---\n{cand}\n"
+Eski kullanım (hâlâ çalışır):
+    from src.core.logic import ConflictDetector
 
-        prompt_template = """
-Sen uzman bir Yazılım Gereksinim Analistisin. Aşağıdaki "ANA GEREKSİNİM" ile "ADAY LİSTESİ"ndeki maddeleri karşılaştır.
-Ana gereksinim ile adaylar arasında herhangi bir ÇELİŞKİ, TUTARSIZLIK veya MANTIKSAL ZITLIK olup olmadığını belirle.
-
-**ANA GEREKSİNİM:**
-{source_req}
-
-**ADAY LİSTESİ:**
-{candidates_text}
-
-**Analiz Kuralları:**
-1. Sadece "ANA GEREKSİNİM" ile çelişen adayları raporla.
-2. Nicel değer (sayı, süre, limit) farklarına özellikle dikkat et.
-3. Her çelişkiyi ayrı bir obje olarak JSON listesi içinde döndür.
-
-Yanıtı SADECE şu JSON formatında ver (eğer çelişki yoksa boş liste döndür):
-[
-    {{
-        "conflict_with_text": "çelişen aday metninin ilk 50 karakteri",
-        "reason": "çelişki nedeni",
-        "severity": "Low/Medium/High"
-    }}
-]
+Yeni kullanım (önerilen):
+    from src.core.conflict_detector import ConflictDetector
 """
-        import time
-        import random
-        
-        prompt = ChatPromptTemplate.from_template(prompt_template)
-        chain = prompt | self.llm | self.parser
+import warnings
 
-        max_retries = 3
-        for retry in range(max_retries):
-            try:
-                results = chain.invoke({
-                    "source_req": source_req,
-                    "candidates_text": candidates_text
-                })
-                return results if isinstance(results, list) else []
-            except Exception as e:
-                if "429" in str(e) or "rate_limit" in str(e).lower():
-                    time.sleep((2 ** retry) * 5 + random.random())
-                else:
-                    print(f"!!! Çapraz Kontrol Hatası: {e}")
-                    break
-        return []
+warnings.warn(
+    "src.core.logic modülü kullanımdan kaldırıldı. "
+    "Lütfen src.core.conflict_detector kullanın.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
+# Geriye dönük uyumluluk için yeniden dışa aktar
+from src.core.conflict_detector import ConflictDetector  # noqa: F401, E402
 
-if __name__ == "__main__":
-    detector = ConflictDetector()
-    
-    # GÜN 3 TESTİ: Çelişki Bulma
-    r1 = "Sistem verileri 30 gun saklamalidir."
-    r2 = "Veriler 1 hafta sonra kalici olarak silinmelidir."
-    
-    print("Analiz ediliyor...")
-    result = detector.analyze_conflict(r1, r2)
-    print(f"Sonuc: {result}")
+__all__ = ["ConflictDetector"]

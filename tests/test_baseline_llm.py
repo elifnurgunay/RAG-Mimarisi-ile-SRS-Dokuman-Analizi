@@ -1,28 +1,15 @@
 import sys
 import os
 import time
-from pathlib import Path
-from dotenv import load_dotenv
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-
-# pydantic v1 yamasini tekrar ediyoruz (eski langchain surumleri icin)
-class DummyClass: pass
-class MockModule:
-    def __getattr__(self, name): return DummyClass  
-    def __call__(self, *args, **kwargs): return DummyClass()
-sys.modules['pydantic.v1'] = MockModule()
-sys.modules['pydantic.v1.errors'] = MockModule()
-sys.modules['pydantic.v1.main'] = MockModule()
-sys.modules['pydantic.v1.fields'] = MockModule()
-sys.modules['pydantic.v1.validators'] = MockModule()
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import JsonOutputParser
+from src.config import GROQ_API_KEY
 
-env_path = Path(__file__).resolve().parent / ".env"
-load_dotenv(env_path)
+
 
 def run_baseline_llm():
     print("="*60)
@@ -37,11 +24,11 @@ def run_baseline_llm():
     full_document = "\n".join(lines)
     print(f"[*] Tum dokuman tek parca halinde hazirlandi ({len(lines)} madde).")
 
-    # 2. LLM Ayarlari
+    # 2. LLM Ayarları (merkezi config üzerinden)
     llm = ChatGroq(
         model="llama-3.3-70b-versatile",
         temperature=0,
-        api_key=os.getenv("GROQ_API_KEY")
+        groq_api_key=GROQ_API_KEY
     )
     parser = JsonOutputParser()
 

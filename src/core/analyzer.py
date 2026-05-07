@@ -1,43 +1,29 @@
-import sys
-import os 
-from typing import List, Literal
+"""
+src/core/analyzer.py
 
-# --- SIHIRLI DOKUNUŞ V2: Python 3.14 Yaması ---
-class DummyClass:
-    pass
-class MockModule:
-    def __getattr__(self, name): return DummyClass  
-    def __call__(self, *args, **kwargs): return DummyClass()
-sys.modules['pydantic.v1'] = MockModule()
-sys.modules['pydantic.v1.errors'] = MockModule()
-sys.modules['pydantic.v1.main'] = MockModule()
-sys.modules['pydantic.v1.fields'] = MockModule()
-sys.modules['pydantic.v1.validators'] = MockModule()
-# --------------------------------------------------
+LLM tabanlı SRS kalite analiz motoru.
+Model nesneleri src/schemas/ içinde, LLM src/core/llm_client.py üzerinden alınır.
+"""
+import os
+from typing import List
 
-from pydantic import BaseModel, Field
-from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import JsonOutputParser
-from dotenv import load_dotenv
 
-# .env dosyasındaki API anahtarını yükler
-load_dotenv(override=True)
 
-# --- VERİ ŞEMASI (PYDANTIC) ---
-class RequirementIssue(BaseModel):
-    req_id: str = Field(..., description="Analiz edilen gereksinimin ID'si")
-    type: Literal["Ambiguity", "Inconsistency", "Incompleteness", "Testability"] = Field(..., description="Hata tipi")
-    severity: Literal["Critical", "High", "Medium", "Low"] = Field(..., description="Ciddiyet seviyesi")
-    problem: str = Field(..., description="Tespit edilen sorunun teknik açıklaması")
-    suggestion: str = Field(..., description="Düzeltme önerisi")
+# Merkezi modüller
+from src.core.llm_client import get_llm
+from src.schemas.issue import RequirementIssue
+from src.schemas.report import AnalysisReport
+from src.utils.logging_utils import get_logger
 
-class AnalysisReport(BaseModel):
-    document_name: str
-    overall_quality_score: int
-    issues: List[RequirementIssue]
+logger = get_logger(__name__)
 
-# --- YARDIMCI FONKSİYONLAR ---
+# RequirementIssue ve AnalysisReport artık src/schemas/ altında tanımlı.
+# Geriye dönük uyumluluk için burada da dışa aktarılıyor.
+__all__ = ["RequirementIssue", "AnalysisReport", "calculate_score", "SRSAnalyzer"]
+
+# --- YARDIMCI FONKSİYON ---
 def calculate_score(issues: List[RequirementIssue]) -> int:
     """Hataların ciddiyetine göre 100 üzerinden kalite puanı hesaplar."""
     score = 100
@@ -49,15 +35,8 @@ def calculate_score(issues: List[RequirementIssue]) -> int:
 # --- ANALİZ MOTORU SINIFI ---
 class SRSAnalyzer:
     def __init__(self):
-        api_key = os.getenv("GROQ_API_KEY")
-        if not api_key:
-            raise ValueError("Hata: .env dosyasında GROQ_API_KEY bulunamadı!")
-            
-        self.llm = ChatGroq(
-            model="llama-3.3-70b-versatile",
-            temperature=0.0,  # Deterministik çıktı
-            groq_api_key=api_key
-        )
+        # LLM merkezi fabrikadan alınıyor (src/core/llm_client.py)
+        self.llm = get_llm()
         self.parser = JsonOutputParser(pydantic_object=AnalysisReport)
 
     def run_analysis(self, chunk_text: str, metadata: dict = None) -> AnalysisReport:
@@ -78,7 +57,7 @@ class SRSAnalyzer:
         current_length = 0
         
         for line in lines:
-            if current_length + len(line) > 5000 and current_batch:
+            if current_length + len(line) > 50000 and current_batch:
                 batches.append("\n".join(current_batch))
                 current_batch = []
                 current_length = 0
@@ -93,19 +72,20 @@ class SRSAnalyzer:
         import random
         
         prompt_template = """
-Sen kıdemli bir Yazılım Gereksinim Mühendisisin. Aşağıdaki SRS metin parçalarını ISO/IEC/IEEE 29148 standartlarına göre analiz et.
+Sen kıdemli bir Yazılım Gereksinim Mühendisisin. Aşağıdaki SRS (Yazılım Gereksinim Spesifikasyonu) metin parçalarını analiz et.
 
-**Analiz Kriterleri:** Belirsizlik (Ambiguity), Çelişki (Inconsistency), Eksiklik (Incompleteness), Test Edilebilirlik (Testability).
+**Kritik Talimatlar:**
+1. **Sadece Mevcut Metne Odaklan:** Metinde açıkça yazmayan bölümler için (örn: "Giriş bölümü eksik", "Proje önerisi yok") gibi halüsinasyonlar üretme. Sadece elindeki metin parçasındaki hataları raporla.
+2. **Başlıkları ve Şekil Yazılarını Atla:** Eğer bir satır sadece bir başlık (örn: "4. Kısıtlar") veya şekil adı (örn: "Şekil 5: Diyagram") ise, bunu bir gereksinim maddesi olarak görme ve hata raporlama.
+3. **Somut Hataları Bul:** Belirsizlik (Ambiguity), Çelişki (Inconsistency), Eksiklik (Maddenin kendi içindeki eksiklik) ve Test Edilebilirlik (Testability) kriterlerine odaklan.
+4. **Kesin Kanıt:** Her hata için "Problem" kısmında metindeki hangi ifadenin neden hatalı olduğunu açıklat.
 
-**Görevin:** Verilen metindeki TÜM hataları tespit et ve her biri için somut düzeltme önerisi sun.
-**Önemli:** Eğer bir satırda birden fazla hata varsa hepsini raporla. 'req_id' alanını mutlaka doldur (metinde yoksa metadatayı kullan).
-
-Analiz Edilecek Metin:
+**Giriş Metni:**
 {chunk_text}
 
-Metadata: {metadata}
+**Metadata:** {metadata}
 
-Çıktıyı SADECE JSON formatında ver:
+Yanıtını SADECE AnalysisReport şemasına uygun JSON formatında ver.
 {format_instructions}
 """
         prompt = ChatPromptTemplate.from_template(prompt_template).partial(

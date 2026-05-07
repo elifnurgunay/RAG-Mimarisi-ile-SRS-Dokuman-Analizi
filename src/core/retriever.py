@@ -1,24 +1,10 @@
-import sys
+"""
+src/core/retriever.py
+
+PDF indexleme ve Qdrant hibrit arama motoru.
+Yapılandırma src/config.py üzerinden alınır.
+"""
 import os
-from pathlib import Path
-from dotenv import load_dotenv
-
-# --- SIHIRLI DOKUNUŞ V2: Geliştirilmiş Python 3.14 Yaması ---
-class DummyClass:
-    pass
-
-class MockModule:
-    def __getattr__(self, name):
-        return DummyClass  
-    def __call__(self, *args, **kwargs):
-        return DummyClass()
-
-sys.modules['pydantic.v1'] = MockModule()
-sys.modules['pydantic.v1.errors'] = MockModule()
-sys.modules['pydantic.v1.main'] = MockModule()
-sys.modules['pydantic.v1.fields'] = MockModule()
-sys.modules['pydantic.v1.validators'] = MockModule()
-# --------------------------------------------------
 
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_huggingface import HuggingFaceEmbeddings
@@ -26,19 +12,19 @@ from langchain_qdrant import QdrantVectorStore
 
 from src.parsing.chunking_strategy import ReqChunkingStrategy
 from src.infrastructure.search_optimization import SearchOptimizer
+from src.config import (
+    QDRANT_URL, QDRANT_API_KEY, QDRANT_COLLECTION_NAME, EMBEDDING_MODEL_NAME
+)
 
-# .env dosyasını yükle
-env_path = Path(__file__).resolve().parent.parent / ".env"
-load_dotenv(env_path, override=True)
 
 class SRSRetriever:
-    def __init__(self, collection_name="elif_logic_collection"):
+    def __init__(self, collection_name: str = QDRANT_COLLECTION_NAME):
         self.collection_name = collection_name
-        self.embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
-        self.url = os.getenv("QDRANT_URL")
-        self.api_key = os.getenv("QDRANT_API_KEY")
+        self.embeddings = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL_NAME)
+        self.url = QDRANT_URL
+        self.api_key = QDRANT_API_KEY
         self.vector_store = None
-        self.optimizer = SearchOptimizer() # Hibrit arama için optimizer ekliyoruz
+        self.optimizer = SearchOptimizer()  # Hibrit arama için optimizer
 
     def load_and_index_pdf(self, pdf_path):
         """PDF'i yükler, parçalar ve Qdrant'a indexler."""
@@ -56,7 +42,16 @@ class SRSRetriever:
             fallback_overlap=50,
         )
         texts = self.chunk_strategy.chunk_documents(documents)
+        
+        # Filtreleme: Boş veya sadece boşluk karakterlerinden oluşan parçaları temizle
+        # Bu, 'TypeError: TextEncodeInput' hatasını (boş metinlerin embedding modeline gönderilmesi) önler.
+        texts = [doc for doc in texts if doc.page_content and doc.page_content.strip()]
+        
         print(f"Metin parcalari olusturuldu: {len(texts)} (REQ-ID bazli chunking)")
+
+        if not texts:
+            print("Uyari: Indexlenecek gecerli metin bulunamadi!")
+            return False
 
         print(f"Qdrant'a yukleniyor (Koleksiyon: {self.collection_name})...")
         self.vector_store = QdrantVectorStore.from_documents(
