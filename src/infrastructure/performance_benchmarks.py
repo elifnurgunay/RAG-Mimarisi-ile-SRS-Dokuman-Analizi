@@ -1,153 +1,236 @@
 import time
 import logging
 from typing import List, Dict, Any, Callable
-from src.core.retriever import SRSRetriever
-from src.infrastructure.search_optimization import SearchOptimizer
+
 import numpy as np
+
+from src.infrastructure.retrieval_service import RetrievalService
+from src.infrastructure.search_optimization import SearchOptimizer
 
 logger = logging.getLogger(__name__)
 
 
 class PerformanceBenchmarks:
-    """Benchmarking tools for vector database and search optimization performance."""
+    """
+    RetrievalService ve SearchOptimizer performansını ölçen benchmark yardımcı sınıfı.
 
-    def __init__(self, db_manager: SRSRetriever, search_optimizer: SearchOptimizer):
-        self.db_manager = db_manager
+    Ölçülenler:
+    - Embedding üretim hızı
+    - Vector search hızı
+    - Hybrid search hızı
+    - Precision / Recall / F1 metriği
+    """
+
+    def __init__(
+        self,
+        retrieval_service: RetrievalService,
+        search_optimizer: SearchOptimizer,
+    ):
+        self.retrieval_service = retrieval_service
         self.search_optimizer = search_optimizer
 
-    def benchmark_embedding_speed(self, texts: List[str], num_runs: int = 10) -> Dict[str, float]:
-        """Benchmark embedding generation speed."""
+    def benchmark_embedding_speed(
+        self,
+        texts: List[str],
+        num_runs: int = 5,
+    ) -> Dict[str, float]:
+        """Embedding üretim hızını ölçer."""
+        if not texts:
+            return {
+                "avg_embedding_time": 0.0,
+                "std_embedding_time": 0.0,
+                "texts_per_second": 0.0,
+            }
+
+        embeddings = self.retrieval_service.embeddings
         times = []
+
         for _ in range(num_runs):
             start_time = time.time()
-            self.db_manager._embed_texts(texts)
-            end_time = time.time()
-            times.append(end_time - start_time)
+            embeddings.embed_documents(texts)
+            elapsed = time.time() - start_time
+            times.append(elapsed)
 
-        avg_time = np.mean(times)
-        std_time = np.std(times)
+        avg_time = float(np.mean(times))
+        std_time = float(np.std(times))
+
         return {
             "avg_embedding_time": avg_time,
             "std_embedding_time": std_time,
-            "texts_per_second": len(texts) / avg_time if avg_time > 0 else 0
+            "texts_per_second": len(texts) / avg_time if avg_time > 0 else 0.0,
         }
 
-    def benchmark_search_speed(self, queries: List[str], top_k: int = 3, num_runs: int = 10) -> Dict[str, float]:
-        """Benchmark search query speed."""
+    def benchmark_search_speed(
+        self,
+        queries: List[str],
+        top_k: int = 3,
+        num_runs: int = 5,
+    ) -> Dict[str, float]:
+        """Vector similarity search hızını ölçer."""
+        if not queries:
+            return {
+                "avg_search_time": 0.0,
+                "std_search_time": 0.0,
+                "queries_per_second": 0.0,
+            }
+
         times = []
+
         for query in queries:
             for _ in range(num_runs):
                 start_time = time.time()
-                self.db_manager.read_records(query, top_k=top_k)
-                end_time = time.time()
-                times.append(end_time - start_time)
+                self.retrieval_service.get_similar_requirements(
+                    query=query,
+                    top_k=top_k,
+                )
+                elapsed = time.time() - start_time
+                times.append(elapsed)
 
-        avg_time = np.mean(times)
-        std_time = np.std(times)
+        avg_time = float(np.mean(times))
+        std_time = float(np.std(times))
+
+        total_queries = len(queries) * num_runs
+
         return {
             "avg_search_time": avg_time,
             "std_search_time": std_time,
-            "queries_per_second": len(queries) * num_runs / (avg_time * num_runs) if avg_time > 0 else 0
+            "queries_per_second": total_queries / sum(times) if sum(times) > 0 else 0.0,
         }
 
-    def benchmark_hybrid_search_speed(self, query: str, documents: List[str], top_k: int = 10, num_runs: int = 10) -> Dict[str, float]:
-        """Benchmark hybrid search speed."""
+    def benchmark_hybrid_search_speed(
+        self,
+        query: str,
+        documents: List[str],
+        top_k: int = 10,
+        num_runs: int = 5,
+    ) -> Dict[str, float]:
+        """BM25 + Dense hybrid search hızını ölçer."""
+        if not query or not documents:
+            return {
+                "avg_hybrid_search_time": 0.0,
+                "std_hybrid_search_time": 0.0,
+            }
+
         times = []
+
         for _ in range(num_runs):
             start_time = time.time()
-            self.search_optimizer.hybrid_search(query, documents, top_k=top_k)
-            end_time = time.time()
-            times.append(end_time - start_time)
+            self.search_optimizer.hybrid_search(
+                query=query,
+                documents=documents,
+                top_k=top_k,
+            )
+            elapsed = time.time() - start_time
+            times.append(elapsed)
 
-        avg_time = np.mean(times)
-        std_time = np.std(times)
         return {
-            "avg_hybrid_search_time": avg_time,
-            "std_hybrid_search_time": std_time
+            "avg_hybrid_search_time": float(np.mean(times)),
+            "std_hybrid_search_time": float(np.std(times)),
         }
 
     def calculate_search_accuracy(
         self,
         queries: List[str],
-        ground_truth: List[List[str]],  # For each query, list of relevant doc IDs
-        search_function: Callable[[str, int], List[Dict[str, Any]]],
-        top_k: int = 3
+        ground_truth: List[List[str]],
+        search_function: Callable[[str, int], List[Any]],
+        top_k: int = 3,
     ) -> Dict[str, float]:
         """
-        Calculate precision, recall, and F1 for search results.
+        Search sonuçları için Precision, Recall ve F1 hesaplar.
 
-        search_function should return list of dicts with 'req_id' key.
+        search_function:
+            query ve top_k almalı.
+            LangChain Document listesi veya dict listesi döndürebilir.
         """
+        if not queries or not ground_truth:
+            return {
+                "avg_precision": 0.0,
+                "avg_recall": 0.0,
+                "avg_f1": 0.0,
+            }
+
         precisions = []
         recalls = []
         f1s = []
 
-        for query, gt_ids in zip(queries, ground_truth):
+        for query, expected_ids in zip(queries, ground_truth):
             results = search_function(query, top_k)
-            retrieved_ids = [r.get("req_id") for r in results if r.get("req_id")]
 
-            # Calculate metrics
-            relevant_retrieved = len(set(retrieved_ids) & set(gt_ids))
-            retrieved_count = len(retrieved_ids)
-            relevant_count = len(gt_ids)
+            retrieved_ids = []
 
-            precision = relevant_retrieved / retrieved_count if retrieved_count > 0 else 0
-            recall = relevant_retrieved / relevant_count if relevant_count > 0 else 0
-            f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0
+            for result in results:
+                if isinstance(result, dict):
+                    req_id = result.get("req_id")
+                else:
+                    req_id = getattr(result, "metadata", {}).get("req_id")
+
+                if req_id:
+                    retrieved_ids.append(req_id)
+
+            expected_set = set(expected_ids)
+            retrieved_set = set(retrieved_ids)
+
+            true_positive = len(expected_set & retrieved_set)
+
+            precision = true_positive / len(retrieved_set) if retrieved_set else 0.0
+            recall = true_positive / len(expected_set) if expected_set else 0.0
+            f1 = (
+                2 * precision * recall / (precision + recall)
+                if (precision + recall) > 0
+                else 0.0
+            )
 
             precisions.append(precision)
             recalls.append(recall)
             f1s.append(f1)
 
         return {
-            "avg_precision": np.mean(precisions),
-            "avg_recall": np.mean(recalls),
-            "avg_f1": np.mean(f1s)
+            "avg_precision": float(np.mean(precisions)),
+            "avg_recall": float(np.mean(recalls)),
+            "avg_f1": float(np.mean(f1s)),
         }
 
     def run_full_benchmark(
         self,
         sample_texts: List[str],
         sample_queries: List[str],
-        ground_truth: List[List[str]] = None
+        ground_truth: List[List[str]] | None = None,
     ) -> Dict[str, Any]:
-        """Run comprehensive performance benchmarks."""
-        results = {}
+        """Tüm benchmarkları çalıştırır."""
+        results: Dict[str, Any] = {}
 
-        # Speed benchmarks
         results["embedding_speed"] = self.benchmark_embedding_speed(sample_texts)
         results["search_speed"] = self.benchmark_search_speed(sample_queries)
 
-        # Sample documents for hybrid search
         sample_docs = sample_texts[:50] if len(sample_texts) > 50 else sample_texts
+
         results["hybrid_search_speed"] = self.benchmark_hybrid_search_speed(
-            sample_queries[0] if sample_queries else "test query",
-            sample_docs
+            query=sample_queries[0] if sample_queries else "test query",
+            documents=sample_docs,
         )
 
-        # Accuracy benchmarks (if ground truth provided)
         if ground_truth:
             results["search_accuracy"] = self.calculate_search_accuracy(
-                sample_queries, ground_truth, self.db_manager.read_records
+                queries=sample_queries,
+                ground_truth=ground_truth,
+                search_function=self.retrieval_service.get_similar_requirements,
             )
 
         return results
 
     def log_benchmark_results(self, results: Dict[str, Any]) -> None:
-        """Log benchmark results."""
+        """Benchmark sonuçlarını loglar."""
         logger.info("Performance Benchmark Results:")
+
         for category, metrics in results.items():
-            logger.info(f"  {category}:")
+            logger.info("  %s:", category)
+
             for metric, value in metrics.items():
-                logger.info(f"    {metric}: {value:.4f}")
+                if isinstance(value, float):
+                    logger.info("    %s: %.4f", metric, value)
+                else:
+                    logger.info("    %s: %s", metric, value)
 
 
-# Example usage
 if __name__ == "__main__":
-    # This would require actual instances
-    # db = VectorDBManager()
-    # optimizer = SearchOptimizer()
-    # benchmarks = PerformanceBenchmarks(db, optimizer)
-    # results = benchmarks.run_full_benchmark([...])
-    # benchmarks.log_benchmark_results(results)
     print("PerformanceBenchmarks class ready for use.")
