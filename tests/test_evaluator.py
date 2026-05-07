@@ -1,6 +1,7 @@
 import sys
 import os
 from typing import List
+import pytest
 
 # Proje kök dizinini Python yoluna ekle (Import hatalarını önlemek için)
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -8,8 +9,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 try:
     from src.core.analyzer import SRSAnalyzer
 except ImportError as e:
-    print(f"Hata: src.core.analyzer yüklenemedi. Lütfen dosya yolunu kontrol edin. ({e})")
-    sys.exit(1)
+    pytest.fail(f"Import failed: {e}")
 
 def calculate_metrics(true_positives, total_ai_found, total_actual_issues):
     """Precision, Recall ve F1-Score hesaplar."""

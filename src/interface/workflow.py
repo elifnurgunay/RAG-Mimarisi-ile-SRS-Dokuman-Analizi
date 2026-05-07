@@ -1,7 +1,9 @@
 import os
 import sys
 from pathlib import Path
-
+from src.utils.text_utils import clean_noise, split_into_batches
+from src.schemas.report import AnalysisReport
+from src.core.analyzer import calculate_score
 # Yol ayarı
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
@@ -36,14 +38,11 @@ class SRSWorkflow:
         except:
             pass
 
-        full_text = "\n".join([doc.page_content for doc in all_chunks])
-
-        # 3. Metni Temizle ve Analiz Motorunu Çalıştır
-        from src.utils.text_utils import clean_noise
-        cleaned_text = clean_noise(full_text)
-        
-        print("LLM Analiz motoru çalışıyor...")
-        report = self.analyzer.analyze_text(cleaned_text, doc_name=os.path.basename(pdf_path))
+        chunk_texts = [
+    clean_noise(doc.page_content)
+    for doc in all_chunks
+    if doc.page_content and doc.page_content.strip()
+]
         
         if not report:
             print("HATA: Rapor oluşturulamadı.")

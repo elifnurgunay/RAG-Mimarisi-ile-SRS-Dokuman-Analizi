@@ -17,7 +17,9 @@ import os
 import argparse
 import json
 import time
-
+from src.utils.text_utils import clean_noise, split_into_batches
+from src.schemas.report import AnalysisReport
+from src.core.analyzer import calculate_score
 # Proje kökünü Python path'ine ekle
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -105,12 +107,43 @@ def run_pipeline(args: argparse.Namespace) -> dict:
         logger.error("Veritabanından veri çekilemedi.")
         sys.exit(1)
 
-    full_text = "\n".join(doc.page_content for doc in all_chunks)
+    chunk_texts = [
+    clean_noise(doc.page_content)
+    for doc in all_chunks
+    if doc.page_content and doc.page_content.strip()
+]
 
-    logger.info("[3/4] LLM kalite analizi çalışıyor...")
-    analyzer = SRSAnalyzer()
-    analysis_report = analyzer.analyze_text(full_text, doc_name=os.path.basename(pdf_path))
+batches = split_into_batches(chunk_texts, max_chars=5000)
 
+logger.info("[3/4] LLM kalite analizi çalışıyor | batch=%d", len(batches))
+
+analyzer = SRSAnalyzer()
+batch_reports = []
+
+for index, batch_text in enumerate(batches, start=1):
+    logger.info("LLM analiz batch çalışıyor: %d/%d", index, len(batches))
+
+    partial_report = analyzer.analyze_text(
+        batch_text,
+        doc_name=f"{os.path.basename(pdf_path)}::batch-{index}",
+    )
+
+    if partial_report:
+        batch_reports.append(partial_report)
+
+if not batch_reports:
+    logger.error("Hiçbir batch raporu oluşturulamadı.")
+    sys.exit(1)
+
+merged_issues = []
+for partial in batch_reports:
+    merged_issues.extend(partial.issues)
+
+analysis_report = AnalysisReport(
+    document_name=os.path.basename(pdf_path),
+    overall_quality_score=calculate_score(merged_issues),
+    issues=merged_issues,
+)
     # 3. Çelişki tespiti (opsiyonel)
     conflict_issues: list[ConflictIssue] = []
     if not args.no_conflict:

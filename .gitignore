@@ -9,5 +9,6 @@ __pycache__/
 # Çevresel Değişkenler (API Key'ler burada duracak, kimse görmemeli!)
 .env
 .venv/
-__pycache__/
-*.pyc
+
+data/cache/
+*.pkl
