@@ -8,6 +8,11 @@ from rank_bm25 import BM25Okapi
 import numpy as np
 from sentence_transformers import SentenceTransformer
 
+"""
+Deprecated: Production retrieval path artık HybridQdrantStore kullanır.
+Bu modül sadece benchmark/karşılaştırma amaçlı tutulmaktadır.
+"""
+
 logger = logging.getLogger(__name__)
 
 
