@@ -52,7 +52,8 @@ Yanıtı SADECE şu JSON formatında ver:
 
 _BATCH_PROMPT = """\
 Sen uzman bir Yazılım Gereksinim Analistisin.
-"ANA GEREKSİNİM" ile "ADAY LİSTESİ"ndeki maddeler arasındaki çelişkileri tespit et.
+
+"ANA GEREKSİNİM" ile "ADAY LİSTESİ"ndeki maddeler arasında SADECE doğrudan mantıksal çelişkileri tespit et.
 
 **ANA GEREKSİNİM:**
 {source_req}
@@ -60,10 +61,38 @@ Sen uzman bir Yazılım Gereksinim Analistisin.
 **ADAY LİSTESİ:**
 {candidates_text}
 
-**Kurallar:**
-1. Yalnızca ANA GEREKSİNİM ile doğrudan çelişen adayları raporla.
-2. Nicel değer farklarına özellikle dikkat et.
-3. Her çelişkiyi ayrı bir JSON objesi olarak listede döndür.
+**Kritik Kurallar:**
+1. Semantic similarity conflict değildir.
+2. Aynı konu alanında olmak conflict değildir.
+3. Birbirini destekleyen maddeler conflict değildir.
+4. Teknolojik uyumluluk conflict değildir.
+5. Varsayımlar conflict değildir.
+6. Genel ilişkiler conflict değildir.
+7. Eğer emin değilsen conflict üretme.
+8. Sadece güçlü mantıksal çelişkileri raporla.
+9. Eğer açıklaman içinde "çelişki yok", "conflict değildir", "uyumludur", "destekler" gibi ifadeler geçiyorsa BU MADDEYİ SONUÇ LİSTESİNE EKLEME.
+10. Olası ilişki veya tradeoff conflict değildir.
+11. Performance vs security gibi engineering tradeoff durumlarını conflict olarak işaretleme.
+12. Sadece kesin contradiction varsa sonuç üret.
+
+**SADECE şu durumlarda conflict üret:**
+- Aynı davranış için zıt koşullar varsa
+- Bir requirement izin verip diğeri yasaklıyorsa
+- Çelişen güvenlik politikaları varsa
+- Çelişen veri saklama kuralları varsa
+- Çelişen performans limitleri varsa
+- Mutually exclusive gereksinimler varsa
+
+**Önemli:**
+Aşağıdakiler conflict DEĞİLDİR:
+- semantic benzerlik
+- destekleyici requirement
+- aynı teknoloji stack'i
+- aynı domain
+- refinement ilişkisi
+- broad/narrow relation
+
+Her çelişki için kısa ve somut teknik gerekçe ver.
 
 Yanıtı SADECE şu JSON listesi formatında ver (çelişki yoksa boş liste):
 [
@@ -74,19 +103,17 @@ Yanıtı SADECE şu JSON listesi formatında ver (çelişki yoksa boş liste):
         "conflict_type": "Quantitative|Logical|Scope|Terminology"
     }}
 ]
+**Çok Önemli:**
+Aşağıdaki durumlarda BOŞ LİSTE dön:
+- requirementlar birbirini destekliyorsa
+- aynı sistemi farklı açıdan tanımlıyorsa
+- biri diğerini genişletiyorsa
+- sadece engineering tradeoff varsa
+- conflict olabilir diyorsan
+- kesin contradiction yoksa
 """
 
-
 class ConflictDetector:
-    """
-    Gereksinimler arası çelişkileri LLM ile tespit eden analizci.
-
-    Kullanım:
-        detector = ConflictDetector()
-        result = detector.analyze_pair_conflict(req1_text, req2_text)
-        conflicts = detector.analyze_batch_conflicts(source, [cand1, cand2])
-    """
-
     def __init__(self):
         self.llm = get_llm()
         self.parser = JsonOutputParser()
