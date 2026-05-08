@@ -53,7 +53,7 @@ class PDFParser:
                         }
                     )
         except Exception as exc:
-           logger.error("PDF sayfa çıkarma hatası | hata=%s", exc)
+            logger.error("PDF sayfa çıkarma hatası | hata=%s", exc)
         return pages
 
     def _extract_tables_from_page(self, page: fitz.Page) -> List[Dict[str, Any]]:
@@ -99,7 +99,7 @@ class PDFParser:
 
             return tables
         except Exception as exc:
-           logger.error("Tablo çıkarma hatası | hata=%s", exc)
+            logger.error("Tablo çıkarma hatası | hata=%s", exc)
             return []
 
     def _normalize_text(self, text: str) -> str:
@@ -109,40 +109,106 @@ class PDFParser:
         return row + [""] * (width - len(row))
 
     def parse_requirements(self, text: Optional[str] = None) -> List[Dict[str, Any]]:
-        """Metni REQ-ID bloklarına ayırır."""
+        """
+        Metni requirement bloklarına ayırır.
+
+        Öncelik:
+        1. Requirement ID regex extraction
+        2. Paragraph fallback extraction
+        """
+
         if text is None:
             text = self.extract_text() or ""
 
         if not text.strip():
+            logger.warning("PDF içinde çıkarılabilir metin bulunamadı.")
             return []
 
         matches = list(self.req_pattern.finditer(text))
-        if not matches:
-            return []
 
-        requirements: List[Dict[str, Any]] = []
-        for index, match in enumerate(matches):
-            start = match.start()
-            end = matches[index + 1].start() if index + 1 < len(matches) else len(text)
-            block = text[start:end].strip()
-            req_id = match.group(1).upper()
-            requirements.append({
-                "Requirement_ID": req_id,
-                "text": block,
-            })
+        # =========================
+        # PRIMARY PATH
+        # =========================
+        if matches:
+            requirements: List[Dict[str, Any]] = []
 
-        return requirements
+            for index, match in enumerate(matches):
+                start = match.start()
+
+                end = (
+                    matches[index + 1].start()
+                    if index + 1 < len(matches)
+                    else len(text)
+                )
+
+                block = text[start:end].strip()
+
+                req_id = match.group(1).upper()
+
+                requirements.append(
+                    {
+                        "Requirement_ID": req_id,
+                        "text": block,
+                        "source": "regex",
+                    }
+                )
+
+            logger.info(
+                "Requirement extraction başarılı | yöntem=regex | adet=%d",
+                len(requirements),
+            )
+
+            return requirements
+
+        # =========================
+        # FALLBACK PATH
+        # =========================
+        logger.warning(
+            "Requirement ID bulunamadı. Paragraph fallback parser çalıştırılıyor."
+        )
+
+        paragraphs = [
+            p.strip()
+            for p in re.split(r"\n\s*\n", text)
+            if p.strip() and len(p.strip()) > 40
+        ]
+
+        fallback_requirements: List[Dict[str, Any]] = []
+
+        for idx, paragraph in enumerate(paragraphs, start=1):
+            fallback_requirements.append(
+                {
+                    "Requirement_ID": f"FALLBACK-{idx:03d}",
+                    "text": paragraph,
+                    "source": "fallback",
+                }
+            )
+
+        logger.info(
+            "Fallback extraction tamamlandı | adet=%d",
+            len(fallback_requirements),
+        )
+
+        return fallback_requirements
 
     def parse_pdf(self) -> Dict[str, Any]:
         """PDF'i tam yapılandırılmış biçimde döndürür."""
         pages = self.extract_pages()
         all_text = "\n".join(page["text"] for page in pages)
         requirements = self.parse_requirements(all_text)
+
+        extraction_method = (
+            requirements[0].get("source", "unknown")
+            if requirements
+            else "none"
+        )
+        
         return {
             "file_path": str(self.file_path),
             "page_count": len(pages),
             "pages": pages,
             "requirements": requirements,
+            "extraction_method": extraction_method,
         }
 
 
