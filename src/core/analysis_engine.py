@@ -1,15 +1,15 @@
 # src/core/analysis_engine.py
 
 import time
-import random
 from typing import List
 
 from langchain_core.output_parsers import JsonOutputParser
 
+from src.core.prompt_builder import PromptBuilder
 from src.schemas.issue import RequirementIssue
 from src.schemas.report import AnalysisReport
 from src.utils.logging_utils import get_logger
-from src.core.prompt_builder import PromptBuilder
+from src.utils.retry_utils import RetryPolicy
 
 logger = get_logger(__name__)
 
@@ -19,8 +19,19 @@ class AnalysisEngine:
         self.llm = llm
         self.parser = parser or JsonOutputParser(pydantic_object=AnalysisReport)
         self.prompt_builder = PromptBuilder()
+        self.batch_delay_seconds = 2.0
+        self.retry_policy = RetryPolicy(
+            max_retries=3,
+            base_delay=5.0,
+            backoff_factor=2.0,
+            jitter=True,
+        )
 
-    def analyze_batches(self, batches: List[str], metadata: dict | None = None) -> List[RequirementIssue]:
+    def analyze_batches(
+        self,
+        batches: List[str],
+        metadata: dict | None = None,
+    ) -> List[RequirementIssue]:
         all_issues: List[RequirementIssue] = []
 
         prompt = self.prompt_builder.build_analysis_prompt(
@@ -38,7 +49,7 @@ class AnalysisEngine:
             )
             all_issues.extend(issues)
 
-            time.sleep(2)
+            time.sleep(self.batch_delay_seconds)
 
         return all_issues
 
@@ -50,41 +61,35 @@ class AnalysisEngine:
         batch_index: int,
         total_batches: int,
     ) -> List[RequirementIssue]:
-        max_retries = 3
-        retry_count = 0
+        def operation():
+            logger.info(
+                "Batch analiz ediliyor | batch=%d/%d",
+                batch_index + 1,
+                total_batches,
+            )
 
-        while retry_count < max_retries:
-            try:
-                logger.info(
-                    "Batch analiz ediliyor | batch=%d/%d | deneme=%d",
-                    batch_index + 1,
-                    total_batches,
-                    retry_count + 1,
-                )
-
-                raw_output = chain.invoke({
+            raw_output = chain.invoke(
+                {
                     "chunk_text": chunk,
                     "metadata": metadata or {},
-                })
-                parsed_data = self.parser.parse(raw_output.content)
+                }
+            )
+            parsed_data = self.parser.parse(raw_output.content)
 
-                return self._extract_issues(parsed_data)
+            return self._extract_issues(parsed_data)
 
-            except Exception as e:
-                if "rate_limit_exceeded" in str(e).lower() or "429" in str(e):
-                    wait_time = (2 ** retry_count) * 5 + random.random()
-                    logger.warning("Rate limit | bekleme=%.1f sn", wait_time)
-                    time.sleep(wait_time)
-                    retry_count += 1
-                else:
-                    logger.error(
-                        "Batch analizi hatası | batch=%d | hata=%s",
-                        batch_index + 1,
-                        e,
-                    )
-                    return []
-
-        return []
+        try:
+            return self.retry_policy.run(
+                operation=operation,
+                operation_name=f"analysis_batch_{batch_index + 1}",
+            )
+        except Exception as exc:
+            logger.error(
+                "Batch analizi başarısız | batch=%d | hata=%s",
+                batch_index + 1,
+                exc,
+            )
+            return []
 
     def _extract_issues(self, parsed_data) -> List[RequirementIssue]:
         issues = []
