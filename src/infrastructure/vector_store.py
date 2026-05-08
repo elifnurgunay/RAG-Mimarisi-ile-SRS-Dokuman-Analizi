@@ -37,3 +37,7 @@ class VectorStoreService:
         if self.vector_store is None:
             return self.connect_existing()
         return self.vector_store
+        
+    def similarity_search_with_score(self, query: str, k: int = 5):
+    store = self.get_store()
+    return store.similarity_search_with_score(query, k=k)

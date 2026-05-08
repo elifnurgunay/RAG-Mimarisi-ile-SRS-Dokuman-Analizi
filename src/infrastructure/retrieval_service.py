@@ -25,7 +25,7 @@ class RetrievalService:
             collection_name=self.collection_name,
         )
 
-        self.optimizer = SearchOptimizer()
+       # self.optimizer = SearchOptimizer()
         self.chunk_strategy = ReqChunkingStrategy(
             req_pattern=REQUIREMENT_ID_PATTERN,
             fallback_chunk_size=500,
@@ -79,28 +79,16 @@ class RetrievalService:
         store = self.vector_service.get_store()
         return store.similarity_search("", k=k)
 
-    def get_similar_requirements(self, query: str, top_k: int = 3):
-        store = self.vector_service.get_store()
+   def get_similar_requirements(self, query: str, top_k: int = 3):
+    results = self.vector_service.similarity_search_with_score(
+        query=query,
+        k=top_k,
+    )
 
-        candidates = store.similarity_search(query, k=top_k * 4)
+    final_docs = []
 
-        if not candidates:
-            return []
+    for doc, score in results:
+        doc.metadata["qdrant_score"] = float(score)
+        final_docs.append(doc)
 
-        candidate_texts = [doc.page_content for doc in candidates]
-
-        hybrid_results = self.optimizer.hybrid_search(
-            query=query,
-            documents=candidate_texts,
-            top_k=top_k,
-            bm25_weight=0.4,
-            dense_weight=0.6,
-        )
-
-        final_docs = []
-        for idx, score in hybrid_results:
-            doc = candidates[idx]
-            doc.metadata["hybrid_score"] = score
-            final_docs.append(doc)
-
-        return final_docs
+    return final_docs
