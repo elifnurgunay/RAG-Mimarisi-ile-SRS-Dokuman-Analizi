@@ -17,7 +17,7 @@ logger = get_logger(__name__)
 # ---------------------------------------------------------------------------
 # Varsayılan retry politikası (langchain-groq rate limit yönetimi)
 # ---------------------------------------------------------------------------
-_DEFAULT_MAX_RETRIES = 3
+_DEFAULT_MAX_RETRIES = 1
 _DEFAULT_REQUEST_TIMEOUT = 60  # saniye
 
 

@@ -14,26 +14,26 @@ from .issue import RequirementIssue, ConflictIssue
 
 class AnalysisReport(BaseModel):
     """
-    Tek bir analiz turunda LLM'den dönen ham kalite raporu.
-    SRSAnalyzer tarafından üretilir.
+    Raw quality report returned from LLM in a single analysis round.
+    Produced by SRSAnalyzer.
     """
 
-    document_name: str = Field(..., description="Analiz edilen dokümanın adı")
+    document_name: str = Field(..., description="Name of the analyzed SRS document.")
     overall_quality_score: int = Field(
-        ..., ge=0, le=100, description="0–100 arası kalite skoru"
+        ..., ge=0, le=100, description="Overall quality score between 0 and 100."
     )
     issues: List[RequirementIssue] = Field(
-        default_factory=list, description="Tespit edilen tüm kalite hataları"
+        default_factory=list, description="List of detected requirement quality issues."
     )
 
 
 class FinalSRSReport(BaseModel):
     """
-    ReportBuilder tarafından oluşturulan nihai, birleşik SRS analiz raporu.
-    Kalite hataları + çelişkiler + skor + özet içerir.
+    Final combined SRS analysis report created by ReportBuilder.
+    Includes quality issues, conflicts, scores, and summary.
     """
 
-    document_name: str = Field(..., description="Analiz edilen dokümanın adı")
+    document_name: str = Field(..., description="Name of the analyzed SRS document.")
     analysis_timestamp: str = Field(
         default_factory=lambda: datetime.now().isoformat(),
         description="Analizin yapıldığı zaman damgası (ISO 8601)",
@@ -41,27 +41,27 @@ class FinalSRSReport(BaseModel):
 
     # --- Kalite Metrikleri ---
     overall_quality_score: int = Field(
-        ..., ge=0, le=100, description="Kalite puanı (100 = mükemmel)"
+        ..., ge=0, le=100, description="Overall quality score between 0 and 100."
     )
-    total_issues: int = Field(default=0, description="Toplam tespit edilen hata sayısı")
+    total_issues: int = Field(default=0, description="Total number of detected quality issues.")
     total_conflicts: int = Field(
-        default=0, description="Toplam tespit edilen çelişki sayısı"
+        default=0, description="Total number of detected conflicts."
     )
 
     # --- Detaylar ---
     quality_issues: List[RequirementIssue] = Field(
-        default_factory=list, description="Kalite hataları listesi"
+        default_factory=list, description="List of detected requirement quality issues."
     )
     conflicts: List[ConflictIssue] = Field(
-        default_factory=list, description="Çelişki bulguları listesi"
+        default_factory=list, description="List of detected requirement conflicts."
     )
 
     # --- Özet ---
     executive_summary: Optional[str] = Field(
         default=None,
-        description="Yönetici için kısa doküman özeti",
+        description="Executive summary of the final report. Write this field in the same language as the input SRS text.",
     )
     recommendations: List[str] = Field(
         default_factory=list,
-        description="Öncelikli iyileştirme önerileri listesi",
+        description="Prioritized improvement recommendations. Write these items in the same language as the input SRS text.",
     )

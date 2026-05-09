@@ -18,8 +18,8 @@ __all__ = ["RequirementIssue", "AnalysisReport", "calculate_score", "SRSAnalyzer
 
 
 class SRSAnalyzer:
-    def __init__(self):
-        self.llm = get_llm()
+    def __init__(self, model_name: str = None):
+        self.llm = get_llm(model=model_name) if model_name else get_llm()
         self.parser = JsonOutputParser(pydantic_object=AnalysisReport)
         self.batch_processor = BatchProcessor(max_chars=50000)
         self.engine = AnalysisEngine(llm=self.llm, parser=self.parser)

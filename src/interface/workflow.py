@@ -9,6 +9,7 @@ from src.core.conflict_detector import ConflictDetector
 from src.core.report_builder import ReportBuilder
 from src.schemas.report import AnalysisReport
 from src.utils.text_utils import clean_noise, split_into_batches
+from src.utils.requirement_extractor import extract_requirements_from_chunks
 from src.utils.logging_utils import get_logger
 
 logger = get_logger(__name__)
@@ -75,23 +76,23 @@ class SRSWorkflow:
 
         logger.info("Çelişki analizi yapılıyor | mode=global_batch")
 
-        req_texts = [c.page_content for c in all_chunks if "REQ-" in c.page_content]
-        req_ids = [
-            c.metadata.get("req_id", "UNK")
-            for c in all_chunks
-            if "REQ-" in c.page_content
-        ]
+        req_texts, req_ids = extract_requirements_from_chunks(all_chunks)
+        logger.info("Requirement extraction tamamlandı | requirement_sayısı=%d", len(req_texts))
 
         if not req_texts:
-            req_texts = [c.page_content for c in all_chunks[:20]]
-            req_ids = [f"ID-{i}" for i in range(len(req_texts))]
+            logger.warning("REQ-* formatında requirement bulunamadı; çelişki analizi atlandı.")
+            conflict_objects = []
+        else:
+            conflict_objects = self.detector.analyze_global_conflicts(
+                requirements=req_texts,
+                source_req_ids=req_ids,
+                top_k_candidates=2,
+            )
 
-        conflict_objects = self.detector.analyze_global_conflicts(
-            requirements=req_texts,
-            source_req_ids=req_ids,
-            top_k_candidates=2,
+        final_report = ReportBuilder().build(
+            analysis_report=report,
+            conflicts=conflict_objects,
+            source_text="\n".join(chunk_texts),
+            output_language="auto",
         )
-
-        final_report = ReportBuilder().build(report, conflict_objects)
-
         return final_report

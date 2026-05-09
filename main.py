@@ -18,6 +18,7 @@ import argparse
 import json
 import time
 from src.utils.text_utils import clean_noise, split_into_batches
+from src.utils.requirement_extractor import extract_requirements_from_chunks
 from src.schemas.report import AnalysisReport
 from src.core.analyzer import calculate_score
 # Proje kökünü Python path'ine ekle
@@ -68,6 +69,11 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Qdrant koleksiyon adı (varsayılan: config.py'den alınır)",
     )
+    parser.add_argument(
+        "--model",
+        default=None,
+        help="Kullanılacak Groq model adı (ör: llama-3.1-8b-instant)",
+    )
     return parser.parse_args()
 
 
@@ -108,64 +114,71 @@ def run_pipeline(args: argparse.Namespace) -> dict:
         sys.exit(1)
 
     chunk_texts = [
-    clean_noise(doc.page_content)
-    for doc in all_chunks
-    if doc.page_content and doc.page_content.strip()
-]
+        clean_noise(doc.page_content)
+        for doc in all_chunks
+        if doc.page_content and doc.page_content.strip()
+    ]
 
-batches = split_into_batches(chunk_texts, max_chars=5000)
+    batches = split_into_batches(chunk_texts, max_chars=5000)
 
-logger.info("[3/4] LLM kalite analizi çalışıyor | batch=%d", len(batches))
+    logger.info("[3/4] LLM kalite analizi çalışıyor | batch=%d", len(batches))
 
-analyzer = SRSAnalyzer()
-batch_reports = []
+    analyzer = SRSAnalyzer(model_name=args.model)
+    batch_reports = []
 
-for index, batch_text in enumerate(batches, start=1):
-    logger.info("LLM analiz batch çalışıyor: %d/%d", index, len(batches))
+    for index, batch_text in enumerate(batches, start=1):
+        logger.info("LLM analiz batch çalışıyor: %d/%d", index, len(batches))
 
-    partial_report = analyzer.analyze_text(
-        batch_text,
-        doc_name=f"{os.path.basename(pdf_path)}::batch-{index}",
+        partial_report = analyzer.analyze_text(
+            batch_text,
+            doc_name=f"{os.path.basename(pdf_path)}::batch-{index}",
+        )
+
+        if partial_report:
+            batch_reports.append(partial_report)
+
+    if not batch_reports:
+        logger.error("Hiçbir batch raporu oluşturulamadı; conflict analizi çalıştırılmayacak.")
+        sys.exit(1)
+
+    merged_issues = []
+    for partial in batch_reports:
+        merged_issues.extend(partial.issues)
+
+    analysis_report = AnalysisReport(
+        document_name=os.path.basename(pdf_path),
+        overall_quality_score=calculate_score(merged_issues),
+        issues=merged_issues,
     )
-
-    if partial_report:
-        batch_reports.append(partial_report)
-
-if not batch_reports:
-    logger.error("Hiçbir batch raporu oluşturulamadı.")
-    sys.exit(1)
-
-merged_issues = []
-for partial in batch_reports:
-    merged_issues.extend(partial.issues)
-
-analysis_report = AnalysisReport(
-    document_name=os.path.basename(pdf_path),
-    overall_quality_score=calculate_score(merged_issues),
-    issues=merged_issues,
-)
     # 3. Çelişki tespiti (opsiyonel)
     conflict_issues: list[ConflictIssue] = []
+
     if not args.no_conflict:
         logger.info("[4/4] Çelişki analizi çalışıyor (top_k=%d)...", args.top_k)
-        detector = ConflictDetector()
-        req_chunks = [c for c in all_chunks if "REQ-" in c.page_content]
-        req_texts = [c.page_content for c in req_chunks]
-        req_ids = [c.metadata.get("req_id", f"ID-{i}") for i, c in enumerate(req_chunks)]
 
-        raw_conflicts = detector.analyze_global_conflicts(
-            requirements=req_texts,
-            source_req_ids=req_ids,
-            top_k_candidates=args.top_k,
-        )
-        conflict_issues = raw_conflicts
+        req_texts, req_ids = extract_requirements_from_chunks(all_chunks)
+        logger.info("Requirement extraction tamamlandı | requirement_sayısı=%d", len(req_texts))
+
+        if not req_texts:
+            logger.warning("REQ-* formatında requirement bulunamadı; çelişki analizi atlandı.")
+        else:
+            detector = ConflictDetector(model_name=args.model)
+            conflict_issues = detector.analyze_global_conflicts(
+                requirements=req_texts,
+                source_req_ids=req_ids,
+                top_k_candidates=args.top_k,
+            )
     else:
         logger.info("[4/4] Çelişki analizi atlandı (--no-conflict).")
 
     # 4. Final raporu oluştur
     builder = ReportBuilder()
-    final_report = builder.build(analysis_report, conflict_issues)
-
+    final_report = builder.build(
+        analysis_report,
+        conflict_issues,
+        source_text="\n".join(chunk_texts),
+        output_language="auto",
+    )
     elapsed = time.time() - start_time
     logger.info("=" * 60)
     logger.info("Analiz tamamlandı | Süre: %.1f sn | Skor: %d/100",

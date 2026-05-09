@@ -8,15 +8,15 @@ from typing import Optional
 
 
 class Requirement(BaseModel):
-    """SRS dokümanındaki tek bir gereksinim maddesini temsil eder."""
+    """Represents a single requirement item in the SRS document."""
 
     model_config = ConfigDict(populate_by_name=True)
 
-    req_id: str = Field(..., description="Gereksinimin benzersiz ID'si (ör. REQ-001)")
-    text: str = Field(..., description="Gereksinimin tam metni")
+    req_id: str = Field(..., description="Unique requirement ID, such as REQ-001.")
+    text: str = Field(..., description="Full requirement text.")
     section: Optional[str] = Field(
-        default=None, description="Gereksinimin ait olduğu bölüm başlığı"
+        default=None, description="Section title where the requirement appears."
     )
     source_page: Optional[int] = Field(
-        default=None, description="PDF'deki kaynak sayfa numarası"
+        default=None, description="Source page number in the PDF."
     )
