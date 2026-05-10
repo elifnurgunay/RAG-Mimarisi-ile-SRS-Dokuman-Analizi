@@ -21,7 +21,24 @@ class SRSWorkflow:
         self.analyzer = SRSAnalyzer()
         self.detector = ConflictDetector()
 
-    def run_full_analysis(self, pdf_path: str):
+    def run_full_analysis(
+        self,
+        pdf_path: str,
+        model_name: str = "llama-3.1-8b-instant",
+        run_conflict: bool = False,
+        top_k: int = 1,
+    ):
+        logger.info(
+            "Workflow ayarları | model=%s | conflict=%s | top_k=%s",
+            model_name,
+            run_conflict,
+            top_k,
+        )
+
+        self.analyzer = SRSAnalyzer(model_name=model_name)
+        if run_conflict:
+            self.detector = ConflictDetector(model_name=model_name)
+
         logger.info("İş akışı başladı | pdf=%s", pdf_path)
 
         if not self.retriever.load_and_index_pdf(pdf_path):
@@ -74,20 +91,24 @@ class SRSWorkflow:
             issues=merged_issues,
         )
 
-        logger.info("Çelişki analizi yapılıyor | mode=global_batch")
+        conflict_objects = []
 
-        req_texts, req_ids = extract_requirements_from_chunks(all_chunks)
-        logger.info("Requirement extraction tamamlandı | requirement_sayısı=%d", len(req_texts))
+        if run_conflict:
+            logger.info("Çelişki analizi yapılıyor | mode=global_batch")
 
-        if not req_texts:
-            logger.warning("REQ-* formatında requirement bulunamadı; çelişki analizi atlandı.")
-            conflict_objects = []
+            req_texts, req_ids = extract_requirements_from_chunks(all_chunks)
+            logger.info("Requirement extraction tamamlandı | requirement_sayısı=%d", len(req_texts))
+
+            if not req_texts:
+                logger.warning("REQ/FR/NFR/IR/DR/SR formatında requirement bulunamadı; çelişki analizi atlandı.")
+            else:
+                conflict_objects = self.detector.analyze_global_conflicts(
+                    requirements=req_texts,
+                    source_req_ids=req_ids,
+                    top_k_candidates=top_k,
+                )
         else:
-            conflict_objects = self.detector.analyze_global_conflicts(
-                requirements=req_texts,
-                source_req_ids=req_ids,
-                top_k_candidates=2,
-            )
+            logger.info("Çelişki analizi kullanıcı seçimi nedeniyle atlandı.")
 
         final_report = ReportBuilder().build(
             analysis_report=report,

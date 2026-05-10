@@ -160,7 +160,7 @@ def run_pipeline(args: argparse.Namespace) -> dict:
         logger.info("Requirement extraction tamamlandı | requirement_sayısı=%d", len(req_texts))
 
         if not req_texts:
-            logger.warning("REQ-* formatında requirement bulunamadı; çelişki analizi atlandı.")
+            logger.warning("REQ/FR/NFR/IR/DR/SR formatında requirement bulunamadı; çelişki analizi atlandı.")
         else:
             detector = ConflictDetector(model_name=args.model)
             conflict_issues = detector.analyze_global_conflicts(

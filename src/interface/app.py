@@ -41,6 +41,32 @@ st.markdown("---")
 st.sidebar.header("📂 SRS Dokümanı İşlemleri")
 uploaded_file = st.sidebar.file_uploader("Analiz için PDF seçin", type=["pdf"])
 
+with st.sidebar.expander("Advanced Settings", expanded=False):
+    model_mode = st.selectbox(
+        "Model mode",
+        options=[
+            "Fast / Test - 8B",
+            "Quality - 70B"
+        ],
+        index=0,
+        help="Use 8B for faster and cheaper tests. Use 70B only for final quality checks."
+    )
+
+    model_name = (
+        "llama-3.1-8b-instant"
+        if model_mode == "Fast / Test - 8B"
+        else "llama-3.3-70b-versatile"
+    )
+
+    run_conflict = st.checkbox("Run conflict analysis", value=False)
+
+    top_k = st.slider(
+        "Conflict top-k",
+        min_value=1,
+        max_value=5,
+        value=1
+    )
+
 # Analiz Butonu
 analyze_button = st.sidebar.button("🔍 Analizi Başlat", type="primary", disabled=not uploaded_file)
 
@@ -57,7 +83,12 @@ if analyze_button:
 
         # Workflow modülünü başlat ve analizi tetikle
         workflow = SRSWorkflow()
-        final_report = workflow.run_full_analysis(temp_path)
+        final_report = workflow.run_full_analysis(
+            temp_path,
+            model_name=model_name,
+            run_conflict=run_conflict,
+            top_k=top_k,
+        )
         
         if final_report:
             st.session_state['analysis_report'] = final_report

@@ -362,32 +362,25 @@ class ReportBuilder:
         output_language: Optional[str] = "auto",
         source_text: Optional[str] = None,
     ) -> FinalSRSReport:
-        """
-        FinalSRSReport oluşturur.
-
-        Args:
-            analysis_report:
-                SRSAnalyzer'dan gelen kalite raporu.
-
-            conflicts:
-                ConflictDetector'dan gelen çelişki listesi. None ise boş liste kabul edilir.
-
-            executive_summary:
-                Harici olarak sağlanan yönetici özeti. Verilirse otomatik özet üretilmez.
-
-            output_language:
-                "auto", "tr" veya "en".
-                "auto" verilirse kaynak metin/issue alanlarından dil tahmini yapılır.
-
-            source_text:
-                Orijinal SRS metninden örnek içerik.
-                İngilizce/Türkçe final rapor ayrımı için önerilir.
-
-        Returns:
-            FinalSRSReport nesnesi.
-        """
         conflicts = conflicts or []
-        issues = analysis_report.issues
+        raw_issues = analysis_report.issues
+
+        unique_issues = {}
+        for issue in raw_issues:
+            req_id = getattr(issue, "req_id", "")
+            itype = getattr(issue, "type", "")
+            problem = getattr(issue, "problem", "")
+            key = f"{req_id}::{itype}::{problem}"
+            if key not in unique_issues:
+                unique_issues[key] = issue
+
+        deduped_issues = list(unique_issues.values())
+
+        severity_map = {"High": 0, "Medium": 1, "Low": 2}
+        deduped_issues.sort(key=lambda x: severity_map.get(getattr(x, "severity", "Low"), 3))
+
+        MAX_TOTAL_QUALITY_ISSUES = 20
+        capped_issues = deduped_issues[:MAX_TOTAL_QUALITY_ISSUES]
 
         normalized_language = _normalize_lang_code(output_language)
 
@@ -402,9 +395,9 @@ class ReportBuilder:
                 )
                 normalized_language = _detect_output_language(language_sample)
 
-        score = _calculate_quality_score(issues, conflicts)
+        score = _calculate_quality_score(capped_issues, conflicts)
         recommendations = _generate_recommendations(
-            issues=issues,
+            issues=capped_issues,
             conflicts=conflicts,
             language=normalized_language,
         )
@@ -413,7 +406,7 @@ class ReportBuilder:
             executive_summary = self._auto_summary(
                 doc_name=analysis_report.document_name,
                 score=score,
-                issue_count=len(issues),
+                issue_count=len(capped_issues),
                 conflict_count=len(conflicts),
                 language=normalized_language,
             )
@@ -421,9 +414,9 @@ class ReportBuilder:
         final = FinalSRSReport(
             document_name=analysis_report.document_name,
             overall_quality_score=score,
-            total_issues=len(issues),
+            total_issues=len(capped_issues),
             total_conflicts=len(conflicts),
-            quality_issues=issues,
+            quality_issues=capped_issues,
             conflicts=conflicts,
             executive_summary=executive_summary,
             recommendations=recommendations,

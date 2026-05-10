@@ -92,18 +92,62 @@ class AnalysisEngine:
             return []
 
     def _extract_issues(self, parsed_data) -> List[RequirementIssue]:
-        issues = []
-
+        raw_issues = []
         if isinstance(parsed_data, dict):
-            issues = parsed_data.get("issues", [])
+            raw_issues = parsed_data.get("issues", [])
         elif hasattr(parsed_data, "issues"):
-            issues = parsed_data.issues
+            raw_issues = getattr(parsed_data, "issues", [])
 
         result = []
-        for issue_data in issues:
-            if isinstance(issue_data, dict):
-                result.append(RequirementIssue(**issue_data))
-            else:
-                result.append(issue_data)
+        for issue_data in raw_issues:
+            if not isinstance(issue_data, dict):
+                try:
+                    issue_data = issue_data.model_dump()
+                except Exception:
+                    continue
 
-        return result
+            req_id = issue_data.get("req_id")
+            itype = issue_data.get("type")
+            problem = issue_data.get("problem")
+
+            if not req_id or not itype or not problem:
+                continue
+
+            suggestion = issue_data.get("suggestion")
+            if not suggestion:
+                issue_data["suggestion"] = "Clarify the requirement with measurable acceptance criteria or implementation-independent details."
+
+            prob_lower = str(problem).lower()
+
+            general_patterns = [
+                "does not specify how",
+                "does not specify the",
+                "does not specify what",
+                "does not define the",
+                "does not indicate the",
+            ]
+
+            is_general = any(pat in prob_lower for pat in general_patterns)
+
+            if is_general:
+                exception_keywords = [
+                    "tbd", "user-friendly", "secure", "fast", "scalable",
+                    "appropriate", "effective", "suitable", "duplicate",
+                    "redundant", "inconsistent"
+                ]
+                has_exception = any(kw in prob_lower for kw in exception_keywords)
+                
+                if not has_exception:
+                    continue
+
+            try:
+                result.append(RequirementIssue(**issue_data))
+            except Exception as exc:
+                logger.warning("Issue parsing atlandı: %s", exc)
+                continue
+
+        severity_map = {"High": 0, "Medium": 1, "Low": 2}
+        result.sort(key=lambda x: severity_map.get(getattr(x, "severity", "Low"), 3))
+
+        MAX_ISSUES_PER_BATCH = 5
+        return result[:MAX_ISSUES_PER_BATCH]

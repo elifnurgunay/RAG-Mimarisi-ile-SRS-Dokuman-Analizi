@@ -1,10 +1,9 @@
 import re
 from typing import Any, Dict, List, Tuple
 
-# Regex to match REQ- followed by numbers, capturing the ID and the body.
-# It looks ahead for the next REQ- or the end of the string.
 REQ_PATTERN = re.compile(
-    r"(?P<id>REQ-\d+)\s*[:\-]?\s*(?P<body>.*?)(?=\n\s*REQ-\d+\s*[:\-]?|\Z)",
+    r"(?P<id>(?:REQ|FR|NFR|IR|DR|SR)-\d+)\.?\s*[:\-]?\s*"
+    r"(?P<body>.*?)(?=\s+(?:REQ|FR|NFR|IR|DR|SR)-\d+\.?\s*[:\-]?|\Z)",
     re.IGNORECASE | re.DOTALL,
 )
 
@@ -62,3 +61,15 @@ def extract_requirements_from_chunks(chunks) -> Tuple[List[str], List[str]]:
     req_ids = [item["req_id"] for item in requirements]
 
     return req_texts, req_ids
+
+
+if __name__ == "__main__":
+    sample = "REQ-001: This is req A. REQ-002: This is req B. REQ-003: This is req C."
+    reqs = extract_requirements_from_text(sample)
+    print(f"Test 1 - Beklenen 3, Bulunan {len(reqs)}")
+    assert len(reqs) == 3
+
+    sample2 = "FR-01. User login must be secure. NFR-01 Security must be high."
+    reqs2 = extract_requirements_from_text(sample2)
+    print(f"Test 2 - Beklenen 2, Bulunan {len(reqs2)}")
+    assert len(reqs2) == 2
