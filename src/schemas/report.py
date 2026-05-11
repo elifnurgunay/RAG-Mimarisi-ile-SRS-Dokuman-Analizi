@@ -57,6 +57,7 @@ class FinalSRSReport(BaseModel):
     )
 
     # --- Özet ---
+    language: str = Field("en", description="Detected language of the document (tr or en)")
     executive_summary: Optional[str] = Field(
         default=None,
         description="Executive summary of the final report. Write this field in the same language as the input SRS text.",

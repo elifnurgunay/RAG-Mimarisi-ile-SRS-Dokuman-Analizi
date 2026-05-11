@@ -104,15 +104,26 @@ if 'analysis_report' in st.session_state:
     # 1. ÜST METRİKLER
     st.subheader("📊 Yönetici Özeti")
     
-    # Yeni eklenen yönetici özeti metni
-    if report.executive_summary:
-        st.info(report.executive_summary)
+    # Custom summary text (skor içermeyen sade versiyon)
+    if getattr(report, "language", "en") == "tr":
+        summary_text = (
+            f"'{report.document_name}' dokümanı analiz edildi. "
+            f"Toplam {report.total_issues} aday kalite problemi "
+            f"ve {report.total_conflicts} çelişki tespit edildi."
+        )
+    else:
+        summary_text = (
+            f"'{report.document_name}' was analyzed. "
+            f"A total of {report.total_issues} candidate quality issue(s) "
+            f"and {report.total_conflicts} conflict(s) were detected."
+        )
+    st.info(summary_text)
 
     m1, m2, m3, m4 = st.columns(4)
     m1.metric("📄 Doküman", report.document_name)
-    m2.metric("⭐ Kalite Skoru", f"{report.overall_quality_score}/100")
-    m3.metric("⚠️ Kalite Hatası", len(report.quality_issues))
-    m4.metric("🔗 Çelişki", len(report.conflicts))
+    m2.metric("⚠️ Kalite Problemi", report.total_issues)
+    m3.metric("🔗 Çelişki", report.total_conflicts)
+    m4.metric("✅ Analiz Durumu", "Tamamlandı")
 
     st.markdown("---")
 
@@ -129,7 +140,7 @@ if 'analysis_report' in st.session_state:
     col_left, col_right = st.columns(2)
 
     with col_left:
-        st.subheader("📉 Hata Tipi Dağılımı")
+        st.subheader("📉 Problem Tipi Dağılımı")
         all_types = ["Ambiguity", "Inconsistency", "Incompleteness", "Testability"]
 
         if report.quality_issues:
@@ -152,15 +163,15 @@ if 'analysis_report' in st.session_state:
     st.markdown("---")
 
     # 4. DETAYLI PROBLEM TABLOSU
-    st.subheader("📝 Tespit Edilen Kalite Problemleri")
+    st.subheader("📝 Tespit Edilen Aday Kalite Problemleri")
     if report.quality_issues:
         df = pd.DataFrame([i.model_dump() for i in report.quality_issues])
         df = df[["req_id", "type", "problem", "suggestion"]]
-        df.columns = ["ID", "Hata Tipi", "Problem Açıklaması", "Önerilen Çözüm"]
+        df.columns = ["ID", "Problem Tipi", "Problem Açıklaması", "Önerilen Çözüm"]
         st.dataframe(df, use_container_width=True, hide_index=True)
     else:
         st.balloons()
-        st.success("Harika! Dokümanda hiçbir kalite hatası tespit edilmedi.")
+        st.success("Harika! Dokümanda hiçbir aday kalite problemi tespit edilmedi.")
 
     # 5. DIŞA AKTARMA (JSON)
     st.sidebar.markdown("---")

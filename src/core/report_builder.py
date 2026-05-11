@@ -418,6 +418,7 @@ class ReportBuilder:
             total_conflicts=len(conflicts),
             quality_issues=capped_issues,
             conflicts=conflicts,
+            language=normalized_language,
             executive_summary=executive_summary,
             recommendations=recommendations,
         )
