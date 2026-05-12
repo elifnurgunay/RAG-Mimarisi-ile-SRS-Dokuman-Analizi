@@ -1,6 +1,7 @@
 # src/core/analysis_engine.py
 
 import time
+import re
 from typing import List
 
 from langchain_core.output_parsers import JsonOutputParser
@@ -10,6 +11,7 @@ from src.schemas.issue import RequirementIssue
 from src.schemas.report import AnalysisReport
 from src.utils.logging_utils import get_logger
 from src.utils.retry_utils import RetryPolicy
+from src.core.deterministic_quality_rules import detect_deterministic_quality_issues
 
 logger = get_logger(__name__)
 
@@ -151,3 +153,74 @@ class AnalysisEngine:
 
         MAX_ISSUES_PER_BATCH = 5
         return result[:MAX_ISSUES_PER_BATCH]
+
+    def merge_issues(
+        self,
+        llm_issues: List[RequirementIssue],
+        deterministic_issues: List[RequirementIssue],
+        document_text: str = ""
+    ) -> List[RequirementIssue]:
+        """
+        Merges LLM issues and deterministic issues with strict deduplication and hallucination filtering.
+        """
+        def normalize(text: str) -> str:
+            text = re.sub(r'[^\w\s]', '', text.lower())
+            return " ".join(text.split())
+
+        # Pre-extract all requirement-like IDs from document text for fast and robust lookup
+        found_ids = set()
+        if document_text:
+            raw_ids = re.findall(r"(?:REQ|FR|NFR|SYS_REQ|SYSREQ|GEREKSINIM|GEREKSİNİM|R)[\s_\-\.]*\d+", document_text, re.IGNORECASE)
+            for rid in raw_ids:
+                # Normalize rid by removing separators: "FR-01" -> "FR01"
+                found_ids.add(re.sub(r'[\s_\-\.]', '', rid).upper())
+
+        def is_hallucination(req_id: str) -> bool:
+            if not req_id:
+                return True
+            # Special case for section IDs
+            if req_id.startswith(("SEC-", "SECTION-")):
+                return req_id.upper() not in document_text.upper()
+            
+            # Normalize issue req_id: "FR-01" -> "FR01"
+            norm_id = re.sub(r'[\s_\-\.]', '', req_id).upper()
+            return norm_id not in found_ids
+
+        final_issues = []
+        
+        # 1. Deterministic issues (highest priority)
+        deterministic_keys = set()
+        for issue in deterministic_issues:
+            if is_hallucination(issue.req_id):
+                continue
+            
+            final_issues.append(issue)
+            deterministic_keys.add((issue.req_id, issue.type))
+
+        # 2. LLM issues (only if valid and not redundant)
+        llm_seen_keys = set()
+        for issue in llm_issues:
+            # A. Filter hallucinations
+            if is_hallucination(issue.req_id):
+                logger.debug(f"Filtering hallucinated issue for req_id: {issue.req_id}")
+                continue
+
+            # B. Block if deterministic rule already covered this (req_id, type)
+            if (issue.req_id, issue.type) in deterministic_keys:
+                continue
+
+            # C. Deduplication by (req_id, type) - keep only the first one per category
+            type_key = (issue.req_id, issue.type)
+            if type_key in llm_seen_keys:
+                continue
+
+            # D. Semantic deduplication (fallback)
+            semantic_key = (issue.req_id, issue.type, normalize(issue.problem))
+            if semantic_key in llm_seen_keys:
+                continue
+
+            final_issues.append(issue)
+            llm_seen_keys.add(type_key)
+            llm_seen_keys.add(semantic_key)
+
+        return final_issues

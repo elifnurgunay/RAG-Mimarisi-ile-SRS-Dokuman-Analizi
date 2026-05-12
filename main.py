@@ -21,6 +21,7 @@ from src.utils.text_utils import clean_noise, split_into_batches
 from src.utils.requirement_extractor import extract_requirements_from_chunks
 from src.schemas.report import AnalysisReport
 from src.core.analyzer import calculate_score
+from src.core.deterministic_quality_rules import detect_deterministic_quality_issues
 # Proje kökünü Python path'ine ekle
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -99,7 +100,7 @@ def run_pipeline(args: argparse.Namespace) -> dict:
     logger.info("=" * 60)
 
     # 1. PDF → Qdrant index
-    logger.info("[1/4] PDF indexleniyor...")
+    logger.info("[1/5] PDF indexleniyor...")
     collection = args.collection  # None ise retriever kendi varsayılanını kullanır
     retriever = SRSRetriever(collection_name=collection) if collection else SRSRetriever()
     if not retriever.load_and_index_pdf(pdf_path):
@@ -107,7 +108,7 @@ def run_pipeline(args: argparse.Namespace) -> dict:
         sys.exit(1)
 
     # 2. Tüm dokümanı çek ve kalite analizi yap
-    logger.info("[2/4] Doküman metni çekiliyor...")
+    logger.info("[2/5] Doküman metni çekiliyor...")
     all_chunks = retriever.get_all_documents()
     if not all_chunks:
         logger.error("Veritabanından veri çekilemedi.")
@@ -121,7 +122,7 @@ def run_pipeline(args: argparse.Namespace) -> dict:
 
     batches = split_into_batches(chunk_texts, max_chars=5000)
 
-    logger.info("[3/4] LLM kalite analizi çalışıyor | batch=%d", len(batches))
+    logger.info("[3/5] LLM kalite analizi çalışıyor | batch=%d", len(batches))
 
     analyzer = SRSAnalyzer(model_name=args.model)
     batch_reports = []
@@ -141,9 +142,17 @@ def run_pipeline(args: argparse.Namespace) -> dict:
         logger.error("Hiçbir batch raporu oluşturulamadı; conflict analizi çalıştırılmayacak.")
         sys.exit(1)
 
-    merged_issues = []
+    llm_issues = []
     for partial in batch_reports:
-        merged_issues.extend(partial.issues)
+        llm_issues.extend(partial.issues)
+
+    # 3. Deterministic kalite kuralları
+    logger.info("[3/5] Deterministic kalite kuralları çalıştırılıyor...")
+    full_text = "\n".join(chunk_texts)
+    deterministic_issues = detect_deterministic_quality_issues(full_text)
+    
+    # Merge LLM issues and deterministic issues
+    merged_issues = analyzer.engine.merge_issues(llm_issues, deterministic_issues, document_text=full_text)
 
     analysis_report = AnalysisReport(
         document_name=os.path.basename(pdf_path),
@@ -154,7 +163,7 @@ def run_pipeline(args: argparse.Namespace) -> dict:
     conflict_issues: list[ConflictIssue] = []
 
     if not args.no_conflict:
-        logger.info("[4/4] Çelişki analizi çalışıyor (top_k=%d)...", args.top_k)
+        logger.info("[4/5] Çelişki analizi çalışıyor (top_k=%d)...", args.top_k)
 
         req_texts, req_ids = extract_requirements_from_chunks(all_chunks)
         logger.info("Requirement extraction tamamlandı | requirement_sayısı=%d", len(req_texts))
@@ -169,9 +178,9 @@ def run_pipeline(args: argparse.Namespace) -> dict:
                 top_k_candidates=args.top_k,
             )
     else:
-        logger.info("[4/4] Çelişki analizi atlandı (--no-conflict).")
+        logger.info("[4/5] Çelişki analizi atlandı (--no-conflict).")
 
-    # 4. Final raporu oluştur
+    # 5. Final raporu oluştur
     builder = ReportBuilder()
     final_report = builder.build(
         analysis_report,

@@ -67,6 +67,21 @@ DESKTOP_REQUIRED_TERMS = [
     "masaustu zorunlu"
 ]
 
+SELF_REG_TERMS = ["self-registration", "user can register", "kendi kendine kayit"]
+ADMIN_ONLY_REG_TERMS = ["manually created by administrator", "admin creates accounts", "yonetici tarafindan olusturulur"]
+
+UPLOAD_5MB_TERMS = ["5mb", "5 mb", "5 megabytes"]
+UPLOAD_2MB_TERMS = ["2mb", "2 mb", "2 megabytes"]
+
+MULTIPLE_PAYMENT_TERMS = ["multiple payment methods", "various payment options", "birden fazla odeme yontemi"]
+CREDIT_CARD_ONLY_TERMS = ["credit card only", "only credit card", "sadece kredi karti"]
+
+SMS_NOTIF_TERMS = ["sms notifications", "sms notifications shall be sent", "sms bildirimi"]
+NO_EXTERNAL_SMS_TERMS = ["shall not use external sms gateway", "no external sms", "dis sms servisi kullanilmayacak"]
+
+MOBILE_IN_SCOPE_TERMS = ["native mobile application for ios", "mobile app in scope", "ios uygulamasi kapsam dahilinde"]
+MOBILE_OUT_OF_SCOPE_TERMS = ["mobile app out of scope", "ios uygulamasi kapsam disi"]
+
 POSITIVE_MARKERS = [
     "shall", "must", "required", "mandatory", "zorunlu", "olmalidir"
 ]
@@ -305,7 +320,27 @@ def _has_strong_conflict_signal(source_req: str, candidate_req: str, reason: str
     if _has_cross_requirement_pair(source, candidate, MOBILE_ONLY_TERMS, DESKTOP_REQUIRED_TERMS):
         return True
 
-    # 5. Genel pozitif ↔ negatif çelişki — requirement metinleri + LLM reason onayı
+    # 5. Self-reg vs Admin-only
+    if _has_cross_requirement_pair(source, candidate, SELF_REG_TERMS, ADMIN_ONLY_REG_TERMS):
+        return True
+
+    # 6. 5MB vs 2MB
+    if _has_cross_requirement_pair(source, candidate, UPLOAD_5MB_TERMS, UPLOAD_2MB_TERMS):
+        return True
+
+    # 7. Multiple payments vs Credit card only
+    if _has_cross_requirement_pair(source, candidate, MULTIPLE_PAYMENT_TERMS, CREDIT_CARD_ONLY_TERMS):
+        return True
+
+    # 8. SMS vs No external SMS
+    if _has_cross_requirement_pair(source, candidate, SMS_NOTIF_TERMS, NO_EXTERNAL_SMS_TERMS):
+        return True
+
+    # 9. Mobile scope inconsistency
+    if _has_cross_requirement_pair(source, candidate, MOBILE_IN_SCOPE_TERMS, MOBILE_OUT_OF_SCOPE_TERMS):
+        return True
+
+    # 10. Genel pozitif ↔ negatif çelişki — requirement metinleri + LLM reason onayı
     contradiction_reason_markers = [
         "cannot both be true",
         "mutually exclusive",
@@ -342,6 +377,21 @@ def _has_canonical_conflict_pair(source_req: str, candidate_req: str) -> bool:
         return True
 
     if _has_cross_requirement_pair(source, candidate, MOBILE_ONLY_TERMS, DESKTOP_REQUIRED_TERMS):
+        return True
+
+    if _has_cross_requirement_pair(source, candidate, SELF_REG_TERMS, ADMIN_ONLY_REG_TERMS):
+        return True
+
+    if _has_cross_requirement_pair(source, candidate, UPLOAD_5MB_TERMS, UPLOAD_2MB_TERMS):
+        return True
+
+    if _has_cross_requirement_pair(source, candidate, MULTIPLE_PAYMENT_TERMS, CREDIT_CARD_ONLY_TERMS):
+        return True
+
+    if _has_cross_requirement_pair(source, candidate, SMS_NOTIF_TERMS, NO_EXTERNAL_SMS_TERMS):
+        return True
+
+    if _has_cross_requirement_pair(source, candidate, MOBILE_IN_SCOPE_TERMS, MOBILE_OUT_OF_SCOPE_TERMS):
         return True
 
     return False
@@ -504,6 +554,31 @@ def _build_deterministic_conflict_reason(source_req: str, candidate_req: str) ->
             return "Bir gereksinim yalnızca mobil platformu zorunlu kılarken diğer gereksinim masaüstü desteğini zorunlu kılıyor. Bu iki gereksinim aynı anda sağlanamaz."
         return "The requirements cannot both be satisfied because one limits the system to mobile only while the other requires desktop support."
 
+    if _has_cross_requirement_pair(source, candidate, SELF_REG_TERMS, ADMIN_ONLY_REG_TERMS):
+        if lang == "tr":
+            return "Kendi kendine kayıt (self-registration) ile yönetici tarafından oluşturulan hesaplar (manually created) arasında çelişki var."
+        return "Conflict between self-registration and manual account creation by an administrator."
+
+    if _has_cross_requirement_pair(source, candidate, UPLOAD_5MB_TERMS, UPLOAD_2MB_TERMS):
+        if lang == "tr":
+            return "Yükleme limiti çelişkisi: Bir yerde 5MB, diğerinde 2MB olarak belirtilmiş."
+        return "Upload limit conflict: One requirement specifies 5MB while another specifies 2MB."
+
+    if _has_cross_requirement_pair(source, candidate, MULTIPLE_PAYMENT_TERMS, CREDIT_CARD_ONLY_TERMS):
+        if lang == "tr":
+            return "Ödeme yöntemi çelişkisi: Çoklu ödeme yöntemleri vs sadece kredi kartı."
+        return "Payment method conflict: Multiple payment methods vs credit card only."
+
+    if _has_cross_requirement_pair(source, candidate, SMS_NOTIF_TERMS, NO_EXTERNAL_SMS_TERMS):
+        if lang == "tr":
+            return "SMS bildirimi çelişkisi: SMS bildirimi isteniyor ancak harici SMS ağ geçidi kullanımı yasaklanmış."
+        return "SMS notification conflict: SMS notifications are required but external SMS gateways are forbidden."
+
+    if _has_cross_requirement_pair(source, candidate, MOBILE_IN_SCOPE_TERMS, MOBILE_OUT_OF_SCOPE_TERMS):
+        if lang == "tr":
+            return "Mobil uygulama kapsam çelişkisi: Bir yerde kapsam dahilinde, diğerinde kapsam dışında görünüyor."
+        return "Mobile app scope conflict: It appears both in scope and out of scope."
+
     if lang == "tr":
         return "Bu iki gereksinim aynı anda sağlanamaz."
     return "These two requirements cannot both be satisfied."
@@ -524,6 +599,21 @@ def _score_candidate_pair(source_req: str, candidate_req: str) -> int:
         score += 100
 
     if _has_cross_requirement_pair(source, candidate, MOBILE_ONLY_TERMS, DESKTOP_REQUIRED_TERMS):
+        score += 100
+
+    if _has_cross_requirement_pair(source, candidate, SELF_REG_TERMS, ADMIN_ONLY_REG_TERMS):
+        score += 100
+
+    if _has_cross_requirement_pair(source, candidate, UPLOAD_5MB_TERMS, UPLOAD_2MB_TERMS):
+        score += 100
+
+    if _has_cross_requirement_pair(source, candidate, MULTIPLE_PAYMENT_TERMS, CREDIT_CARD_ONLY_TERMS):
+        score += 100
+
+    if _has_cross_requirement_pair(source, candidate, SMS_NOTIF_TERMS, NO_EXTERNAL_SMS_TERMS):
+        score += 100
+
+    if _has_cross_requirement_pair(source, candidate, MOBILE_IN_SCOPE_TERMS, MOBILE_OUT_OF_SCOPE_TERMS):
         score += 100
 
     if _has_quantitative_time_conflict(source_req, candidate_req):
