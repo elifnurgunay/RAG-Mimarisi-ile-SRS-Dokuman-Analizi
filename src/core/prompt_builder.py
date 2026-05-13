@@ -6,42 +6,32 @@ from langchain_core.prompts import ChatPromptTemplate
 class PromptBuilder:
     def build_analysis_prompt(self, format_instructions: str):
         prompt_template = """
-You are a senior Software Requirements Engineer. Analyze the following SRS (Software Requirements Specification) text chunks.
+You are a senior Software Requirements Engineer. Carefully analyze the following SRS (Software Requirements Specification) text.
 
 **OUTPUT LANGUAGE RULE:**
 - Detect the dominant language of the input SRS text.
-- Write all human-readable analysis fields in the same language as the input SRS.
-- If the SRS is in English, write `problem`, `suggestion`, summaries, and recommendations in English.
-- If the SRS is in Turkish, write `problem`, `suggestion`, summaries, and recommendations in Turkish.
-- Do not mix Turkish and English in the same explanation unless the original requirement contains technical terms.
-- Keep JSON keys exactly as required by the schema.
-- Keep enum values exactly as required by the schema.
+- Write all human-readable fields (`problem`, `suggestion`) in the same language as the SRS.
+- Keep JSON keys and enum values exactly as required by the schema.
 
-**Critical Instructions:**
-1. **Use only the given text:** Do not infer problems that are not explicitly supported by the text.
-2. **Ignore headings and captions:** Do not treat section titles, table titles, figure captions, page numbers, or layout artifacts as requirements.
-3. **Report concrete issues only:** Report only clear ambiguity, incompleteness, inconsistency, or testability problems.
-4. **Require direct evidence:** Every issue must be supported by direct evidence from the input text. If there is no evidence, do not create an issue.
-5. **Do not confuse semantic relation with contradiction:** Two requirements being related to the same domain does not automatically mean they conflict.
-6. **Report only direct logical contradictions:** A conflict exists only when two requirements cannot both be true at the same time.
-7. **Do not mark supportive or compatible requirements as conflicts.**
-8. **Duplicate is not a conflict:** Similar or repeated requirements should be reported as quality issues, not as conflicts.
-9. **Do not report security + encryption as conflict.**
-10. **Do not report cloud + internet access as conflict.**
-11. **Do not report modern UI + mobile app as conflict.**
-12. **Classify duplicates correctly:** If a requirement duplicates another requirement, classify it as `Inconsistency`, not `Incompleteness`.
+**STRICT ANALYSIS RULES:**
+1. **Read the actual text carefully.** Every issue you report MUST be directly supported by a specific phrase or sentence from the input text below. Quote or reference it.
+2. **Use the actual requirement IDs from the text.** Only report issues for requirement IDs that actually appear in the input (e.g., FR-01, NFR-03, REQ-5). Do NOT invent or guess IDs.
+3. **Report only real problems found in THIS specific document.** Do not use generic or templated problems.
+4. **Issue types to look for:**
+   - `Ambiguity`: Vague terms like "fast", "user-friendly", "appropriate", "some", "several", "periodically" without measurable criteria.
+   - `Incompleteness`: Missing actors, error handling, conditions, or acceptance criteria for a specific requirement.
+   - `Inconsistency`: Two requirements that directly contradict each other, or a requirement that duplicates another.
+   - `Testability`: A requirement with no measurable or verifiable acceptance criterion.
+5. **Do NOT report:** headings, page numbers, section titles, table captions, or any non-requirement text.
+6. **Do NOT report** issues that are not clearly evidenced in the text.
+7. **Severity:** Use `High` for critical functional gaps, `Medium` for moderate quality issues, `Low` for minor wording issues.
 
-**Input Text:**
+**Input SRS Text:**
 {chunk_text}
 
 **Metadata:** {metadata}
 
-Duplicate example:
-- problem: "REQ-008 duplicates REQ-002."
-- type: "Inconsistency"
-- suggestion: "Remove REQ-008 or consolidate it with REQ-002." 
-
-Return ONLY valid JSON matching the AnalysisReport schema.
+Return ONLY valid JSON matching the AnalysisReport schema. Do not include any text outside the JSON.
 {format_instructions}
 """
         return ChatPromptTemplate.from_template(prompt_template).partial(

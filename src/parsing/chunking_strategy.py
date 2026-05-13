@@ -89,10 +89,13 @@ class ReqChunkingStrategy:
         return processed_chunks
 
     def chunk_documents(self, documents: List[Any]) -> List[Any]:
-        """Belgeleri REQ-ID tabanlı parçalara ayırır."""
+        """Belgeleri REQ-ID tabanlı parçalara ayırır. chunk_index ile sıralama garantiler."""
         chunked_documents = []
+        global_index = 0
         for document in documents:
             chunks = self.chunk_document(document.page_content, document.metadata)
             for chunk in chunks:
+                chunk["metadata"]["chunk_index"] = global_index
+                global_index += 1
                 chunked_documents.append(self._build_document(chunk["text"], chunk["metadata"]))
         return chunked_documents

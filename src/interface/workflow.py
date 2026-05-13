@@ -8,6 +8,7 @@ from src.core.analyzer import SRSAnalyzer, calculate_score
 from src.core.conflict_detector import ConflictDetector
 from src.core.report_builder import ReportBuilder
 from src.schemas.report import AnalysisReport
+from src.core.deterministic_quality_rules import detect_deterministic_quality_issues
 from src.utils.text_utils import clean_noise, split_into_batches
 from src.utils.requirement_extractor import extract_requirements_from_chunks
 from src.utils.logging_utils import get_logger
@@ -81,9 +82,18 @@ class SRSWorkflow:
             logger.error("Hiçbir batch raporu oluşturulamadı.")
             return None
 
-        merged_issues = []
+        llm_issues = []
         for partial in batch_reports:
-            merged_issues.extend(partial.issues)
+            llm_issues.extend(partial.issues)
+
+        full_text = "\n".join(chunk_texts)
+        deterministic_issues = detect_deterministic_quality_issues(full_text)
+        
+        merged_issues = self.analyzer.engine.merge_issues(
+            llm_issues=llm_issues, 
+            deterministic_issues=deterministic_issues, 
+            document_text=full_text
+        )
 
         report = AnalysisReport(
             document_name=os.path.basename(pdf_path),

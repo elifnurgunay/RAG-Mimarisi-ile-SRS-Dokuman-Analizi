@@ -353,9 +353,11 @@ class HybridQdrantStore:
 
             point_id = str(uuid.uuid4())
             
+            meta = getattr(doc, "metadata", {}) or {}
             safe_payload = _make_json_safe({
                 "page_content": getattr(doc, "page_content", ""),
-                **(getattr(doc, "metadata", {}) or {}),
+                "_chunk_index": meta.get("chunk_index", 0),
+                "_metadata": meta,
             })
             
             try:
@@ -442,11 +444,19 @@ class HybridQdrantStore:
 
         for point in points:
             payload = point.payload or {}
+            # Metadata is stored under _metadata key
+            meta = payload.get("_metadata", {})
+            # Fallback: if old format (no _metadata key), use empty dict
+            if not meta:
+                meta = {}
+            meta["chunk_index"] = payload.get("_chunk_index", 0)
             docs.append(
                 Document(
                     page_content=payload.get("page_content", ""),
-                    metadata=payload.get("metadata", {}),
+                    metadata=meta,
                 )
             )
 
+        # Sort by chunk_index to guarantee deterministic ordering
+        docs.sort(key=lambda d: d.metadata.get("chunk_index", 0))
         return docs

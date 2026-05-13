@@ -119,29 +119,6 @@ class AnalysisEngine:
             if not suggestion:
                 issue_data["suggestion"] = "Clarify the requirement with measurable acceptance criteria or implementation-independent details."
 
-            prob_lower = str(problem).lower()
-
-            general_patterns = [
-                "does not specify how",
-                "does not specify the",
-                "does not specify what",
-                "does not define the",
-                "does not indicate the",
-            ]
-
-            is_general = any(pat in prob_lower for pat in general_patterns)
-
-            if is_general:
-                exception_keywords = [
-                    "tbd", "user-friendly", "secure", "fast", "scalable",
-                    "appropriate", "effective", "suitable", "duplicate",
-                    "redundant", "inconsistent"
-                ]
-                has_exception = any(kw in prob_lower for kw in exception_keywords)
-                
-                if not has_exception:
-                    continue
-
             try:
                 result.append(RequirementIssue(**issue_data))
             except Exception as exc:
@@ -151,7 +128,7 @@ class AnalysisEngine:
         severity_map = {"High": 0, "Medium": 1, "Low": 2}
         result.sort(key=lambda x: severity_map.get(getattr(x, "severity", "Low"), 3))
 
-        MAX_ISSUES_PER_BATCH = 5
+        MAX_ISSUES_PER_BATCH = 15
         return result[:MAX_ISSUES_PER_BATCH]
 
     def merge_issues(
