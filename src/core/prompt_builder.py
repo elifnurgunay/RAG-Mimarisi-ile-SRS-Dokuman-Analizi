@@ -14,7 +14,11 @@ You are a senior Software Requirements Engineer. Carefully analyze the following
 - Keep JSON keys and enum values exactly as required by the schema.
 
 **STRICT ANALYSIS RULES:**
-1. **Read the actual text carefully.** Every issue you report MUST be directly supported by a specific phrase or sentence from the input text below. Quote or reference it.
+1. **MANDATORY EXHAUSTIVE EXTRACTION:** You MUST extract every single error. Do not stop at a few examples.
+   - STEP 1: Scan the text to identify ALL requirement IDs (e.g., FR-01, NFR-02).
+   - STEP 2: Evaluate EACH requirement one by one against the issue types below.
+   - STEP 3: If a requirement has an issue, you MUST add it to the JSON. Do not skip any defective requirement.
+2. **Read the actual text carefully.** Every issue you report MUST be directly supported by a specific phrase or sentence from the input text below. Quote or reference it.
 2. **Use the actual requirement IDs from the text.** Only report issues for requirement IDs that actually appear in the input (e.g., FR-01, NFR-03, REQ-5). Do NOT invent or guess IDs.
 3. **Report only real problems found in THIS specific document.** Do not use generic or templated problems.
 4. **Issue types to look for:**

@@ -321,8 +321,11 @@ class TestReportBuilder:
 
     def test_build_with_issues(self):
         from src.core.report_builder import ReportBuilder
-        issues = [self._make_issue(severity="Critical"), self._make_issue(severity="Low")]
-        final = builder = ReportBuilder()
+        issues = [
+            self._make_issue(severity="Critical", req_id="REQ-001"),
+            self._make_issue(severity="Low", req_id="REQ-002")
+        ]
+        builder = ReportBuilder()
         final = builder.build(self._make_analysis_report(issues))
         # Critical(-20) + Low(-2) = 78
         assert final.overall_quality_score == 78
@@ -340,7 +343,8 @@ class TestReportBuilder:
     def test_build_score_never_below_zero(self):
         from src.core.report_builder import ReportBuilder
         # 10 Critical issue → 10 * 20 = 200 puan düşüşü → min 0
-        issues = [self._make_issue(severity="Critical") for _ in range(10)]
+        # Her birinin farklı req_id'si olmalı ki dedup edilmesinler
+        issues = [self._make_issue(severity="Critical", req_id=f"REQ-{i}") for i in range(10)]
         builder = ReportBuilder()
         final = builder.build(self._make_analysis_report(issues))
         assert final.overall_quality_score == 0
