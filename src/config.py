@@ -50,7 +50,7 @@ BATCH_SIZE: int = int(os.getenv("BATCH_SIZE", "5000"))  # karakter cinsinden
 
 REQUIREMENT_ID_PATTERN: str = (
     r"\b("
-    r"(?:REQ|FR|NFR|SYS_REQ|SYSREQ|GEREKSINIM|GEREKSİNİM|R)"
+    r"(?:REQ|FR|NFR|SYS_REQ|SYSREQ|GEREKSINIM|GEREKSİNİM|R|US|UC|BR|SR|DB)"
     r"[\s_\-\.]*"
     r"\d+"
     r")\b"

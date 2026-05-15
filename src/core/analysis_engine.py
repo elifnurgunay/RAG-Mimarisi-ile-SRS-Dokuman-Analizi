@@ -127,6 +127,7 @@ class AnalysisEngine:
         severity_map = {"High": 0, "Medium": 1, "Low": 2}
         result.sort(key=lambda x: severity_map.get(getattr(x, "severity", "Low"), 3))
 
+        logger.info("LLM ham yanıtında %d adet hata bulundu.", len(result))
         MAX_ISSUES_PER_BATCH = 30
         return result[:MAX_ISSUES_PER_BATCH]
 
@@ -144,12 +145,23 @@ class AnalysisEngine:
             return " ".join(text.split())
 
         # Pre-extract all requirement-like IDs from document text for fast and robust lookup
+        from src.config import REQUIREMENT_ID_PATTERN
         found_ids = set()
+        
+        def normalize_req_id(rid: str) -> str:
+            # Önce boşluk, tire, nokta temizle ve büyüt: "FR-01" -> "FR01"
+            clean = re.sub(r'[\s_\-\.]', '', rid).upper()
+            # Harfler ve sayılar arasına tire koy, sıfırları at: "FR01" -> "FR1"
+            # (\D+) harf kısmı, (\d+) rakam kısmı.
+            match = re.match(r"^([A-Z]+)0*(\d+)$", clean)
+            if match:
+                return f"{match.group(1)}{match.group(2)}"
+            return clean
+
         if document_text:
-            raw_ids = re.findall(r"(?:REQ|FR|NFR|SYS_REQ|SYSREQ|GEREKSINIM|GEREKSİNİM|R)[\s_\-\.]*\d+", document_text, re.IGNORECASE)
+            raw_ids = re.findall(REQUIREMENT_ID_PATTERN, document_text, re.IGNORECASE)
             for rid in raw_ids:
-                # Normalize rid by removing separators: "FR-01" -> "FR01"
-                found_ids.add(re.sub(r'[\s_\-\.]', '', rid).upper())
+                found_ids.add(normalize_req_id(rid))
 
         def is_hallucination(req_id: str) -> bool:
             if not req_id:
@@ -158,8 +170,8 @@ class AnalysisEngine:
             if req_id.startswith(("SEC-", "SECTION-")):
                 return req_id.upper() not in document_text.upper()
             
-            # Normalize issue req_id: "FR-01" -> "FR01"
-            norm_id = re.sub(r'[\s_\-\.]', '', req_id).upper()
+            # Normalize issue req_id
+            norm_id = normalize_req_id(req_id)
             return norm_id not in found_ids
 
         final_issues = []

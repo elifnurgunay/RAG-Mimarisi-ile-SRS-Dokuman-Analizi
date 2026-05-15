@@ -120,37 +120,27 @@ def run_pipeline(args: argparse.Namespace) -> dict:
         if doc.page_content and doc.page_content.strip()
     ]
 
-    batches = split_into_batches(chunk_texts, max_chars=5000)
-
-    logger.info("[3/5] LLM kalite analizi çalışıyor | batch=%d", len(batches))
-
+    full_text = "\n".join(chunk_texts)
+    
     analyzer = SRSAnalyzer(model_name=args.model)
-    batch_reports = []
+    
+    logger.info("[3/5] LLM kalite analizi çalışıyor...")
+    partial_report = analyzer.analyze_text(
+        full_text,
+        doc_name=os.path.basename(pdf_path),
+    )
 
-    for index, batch_text in enumerate(batches, start=1):
-        logger.info("LLM analiz batch çalışıyor: %d/%d", index, len(batches))
-
-        partial_report = analyzer.analyze_text(
-            batch_text,
-            doc_name=f"{os.path.basename(pdf_path)}::batch-{index}",
-        )
-
-        if partial_report:
-            batch_reports.append(partial_report)
-
-    if not batch_reports:
-        logger.error("Hiçbir batch raporu oluşturulamadı; conflict analizi çalıştırılmayacak.")
+    if not partial_report:
+        logger.error("LLM analiz raporu oluşturulamadı; conflict analizi çalıştırılmayacak.")
         sys.exit(1)
 
-    llm_issues = []
-    for partial in batch_reports:
-        llm_issues.extend(partial.issues)
+    llm_issues = partial_report.issues
 
     # 4. Deterministik kalite kuralları
     logger.info("[4/5] Deterministik kalite kuralları çalıştırılıyor...")
     full_text = "\n".join(chunk_texts)
     deterministic_issues = detect_deterministic_quality_issues(full_text)
-    
+    logger.info("Deterministik kurallar %d adet hata tespit etti.", len(deterministic_issues))
     # Merge LLM issues and deterministic issues
     merged_issues = analyzer.engine.merge_issues(llm_issues, deterministic_issues, document_text=full_text)
 

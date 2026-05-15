@@ -230,15 +230,20 @@ def _detect_generic_vague_terms(document_text: str) -> list[RequirementIssue]:
         ),
     }
 
-    # Requirement satırlarını çıkar
-    req_pattern = re.compile(
-        r"(?P<id>(?:REQ|FR|NFR|IR|DR|SR|SYS_REQ)[\s_\-\.]*\d+)[^\n]*(?P<body>[^\n]+)",
-        re.IGNORECASE,
-    )
+    from src.config import REQUIREMENT_ID_PATTERN
 
-    for req_match in req_pattern.finditer(document_text):
-        req_id = re.sub(r"[\s_\.]", "-", req_match.group("id").upper().strip())
-        body = req_match.group("body")
+    # Tüm requirement ID'lerini ve pozisyonlarını bul
+    matches = list(re.finditer(REQUIREMENT_ID_PATTERN, document_text, re.IGNORECASE))
+    
+    for i, req_match in enumerate(matches):
+        req_id_raw = req_match.group(1)
+        req_id = re.sub(r"[\s_\.]", "-", req_id_raw.upper().strip())
+        
+        # Body starts after this ID and ends at the next ID (or end of document)
+        start_idx = req_match.end()
+        end_idx = matches[i+1].start() if i + 1 < len(matches) else len(document_text)
+        
+        body = document_text[start_idx:end_idx]
 
         for pattern, (itype, problem, suggestion) in VAGUE_TERMS.items():
             if re.search(pattern, body, re.IGNORECASE):

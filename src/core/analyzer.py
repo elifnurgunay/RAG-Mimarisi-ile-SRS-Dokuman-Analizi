@@ -21,7 +21,7 @@ class SRSAnalyzer:
     def __init__(self, model_name: str = None):
         self.llm = get_llm(model=model_name) if model_name else get_llm()
         self.parser = JsonOutputParser(pydantic_object=AnalysisReport)
-        self.batch_processor = BatchProcessor(max_chars=50000)
+        self.batch_processor = BatchProcessor(max_chars=2000)
         self.engine = AnalysisEngine(llm=self.llm, parser=self.parser)
 
     def run_analysis(self, chunk_text: str, metadata: dict = None) -> AnalysisReport:
