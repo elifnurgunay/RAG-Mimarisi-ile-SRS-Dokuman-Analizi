@@ -1,20 +1,18 @@
 import re
 from typing import Any, Dict, List, Tuple
 
-REQ_PATTERN = re.compile(
-    r"(?P<id>(?:REQ|FR|NFR|IR|DR|SR)-\d+)\.?\s*[:\-]?\s*"
-    r"(?P<body>.*?)(?=\s+(?:REQ|FR|NFR|IR|DR|SR)-\d+\.?\s*[:\-]?|\Z)",
-    re.IGNORECASE | re.DOTALL,
-)
+from src.config import REQUIREMENT_ID_PATTERN
 
 def clean_requirement_text(text: str) -> str:
     """Cleans whitespace and strips the requirement text."""
     text = re.sub(r"\s+", " ", text or "").strip()
+    # Metnin başındaki olası nokta veya iki noktaları temizle
+    text = re.sub(r"^[\.\-:]\s*", "", text)
     return text
 
 def extract_requirements_from_text(text: str) -> List[Dict[str, str]]:
     """
-    Extracts individual requirements from a block of text using regex.
+    Extracts individual requirements from a block of text using the central regex pattern.
     Handles duplicate IDs by appending a suffix.
     """
     results = []
@@ -22,10 +20,19 @@ def extract_requirements_from_text(text: str) -> List[Dict[str, str]]:
         return results
 
     seen_ids = {}
+    
+    matches = list(re.finditer(REQUIREMENT_ID_PATTERN, text, re.IGNORECASE))
 
-    for match in REQ_PATTERN.finditer(text):
-        req_id = match.group("id").upper()
-        body = clean_requirement_text(match.group("body"))
+    for i, match in enumerate(matches):
+        req_id_raw = match.group(1)
+        req_id = re.sub(r"[\s_\.]", "-", req_id_raw.upper().strip())
+
+        # Body starts after this ID and ends at the next ID (or end of document)
+        start_idx = match.end()
+        end_idx = matches[i+1].start() if i + 1 < len(matches) else len(text)
+        
+        body_raw = text[start_idx:end_idx]
+        body = clean_requirement_text(body_raw)
 
         # Skip requirements that are too short to be meaningful
         if not body or len(body) < 8:
