@@ -446,28 +446,34 @@ class HybridQdrantStore:
         return docs
 
     def scroll_all_documents(self, limit: int = 100) -> List[Document]:
-        points, _ = self.client.scroll(
-            collection_name=self.collection_name,
-            limit=limit,
-            with_payload=True,
-        )
-
         docs = []
-
-        for point in points:
-            payload = point.payload or {}
-            # Metadata is stored under _metadata key
-            meta = payload.get("_metadata", {})
-            # Fallback: if old format (no _metadata key), use empty dict
-            if not meta:
-                meta = {}
-            meta["chunk_index"] = payload.get("_chunk_index", 0)
-            docs.append(
-                Document(
-                    page_content=payload.get("page_content", ""),
-                    metadata=meta,
-                )
+        next_page_offset = None
+        
+        while True:
+            points, next_page_offset = self.client.scroll(
+                collection_name=self.collection_name,
+                limit=limit,
+                offset=next_page_offset,
+                with_payload=True,
             )
+
+            for point in points:
+                payload = point.payload or {}
+                # Metadata is stored under _metadata key
+                meta = payload.get("_metadata", {})
+                # Fallback: if old format (no _metadata key), use empty dict
+                if not meta:
+                    meta = {}
+                meta["chunk_index"] = payload.get("_chunk_index", 0)
+                docs.append(
+                    Document(
+                        page_content=payload.get("page_content", ""),
+                        metadata=meta,
+                    )
+                )
+                
+            if next_page_offset is None:
+                break
 
         # Sort by chunk_index to guarantee deterministic ordering
         docs.sort(key=lambda d: d.metadata.get("chunk_index", 0))
