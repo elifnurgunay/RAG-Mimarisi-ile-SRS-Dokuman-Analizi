@@ -133,50 +133,100 @@ def _detect_generic_vague_terms(document_text: str) -> list[RequirementIssue]:
             "'user-friendly' is a vague, subjective term with no measurable criteria.",
             "Define usability with measurable metrics (e.g., 'SUS score > 80' or 'task completion in < 2 minutes')."
         ),
+        r"\bkullanıcı\s+dostu\b": (
+            "Testability",
+            "'kullanıcı dostu' ölçülebilir kriteri olmayan öznel bir ifadedir.",
+            "Kullanılabilirliği ölçülebilir metriklerle tanımlayın (örn: 'SUS skoru > 80' veya 'görev tamamlama süresi < 2 dakika')."
+        ),
         r"\bfast\b": (
             "Testability",
             "'fast' is a vague, non-measurable performance requirement.",
             "Specify a concrete response time (e.g., 'response time < 2 seconds under normal load')."
+        ),
+        r"\bhızlı\b": (
+            "Testability",
+            "'hızlı' ölçülebilir olmayan belirsiz bir performans gereksinimidir.",
+            "Somut bir yanıt süresi belirtin (örn: 'normal yük altında yanıt süresi < 2 saniye')."
         ),
         r"\bquickly\b": (
             "Testability",
             "'quickly' is a non-measurable time constraint.",
             "Replace with a specific time limit (e.g., 'within 500 milliseconds')."
         ),
+        r"\bhızlıca\b": (
+            "Testability",
+            "'hızlıca' ölçülebilir olmayan bir zaman kısıtlamasıdır.",
+            "Belirli bir zaman sınırı ile değiştirin (örn: '500 milisaniye içinde')."
+        ),
         r"\bhighly\s+scalable\b": (
             "Testability",
             "'highly scalable' lacks measurable capacity targets.",
             "Define scalability with concrete numbers (e.g., 'must support 10,000 concurrent users')."
+        ),
+        r"\byüksek\s+ölçeklenebilir\b": (
+            "Testability",
+            "'yüksek ölçeklenebilir' ölçülebilir kapasite hedeflerinden yoksundur.",
+            "Ölçeklenebilirliği somut sayılarla tanımlayın (örn: 'aynı anda 10.000 kullanıcıyı desteklemeli')."
         ),
         r"\bappropriate\b": (
             "Ambiguity",
             "'appropriate' is ambiguous and subject to interpretation.",
             "Replace with specific, measurable criteria."
         ),
+        r"\buygun\b": (
+            "Ambiguity",
+            "'uygun' yoruma açık ve belirsiz bir ifadedir.",
+            "Belirli, ölçülebilir kriterlerle değiştirin."
+        ),
         r"\bseveral\b": (
             "Ambiguity",
             "'several' is vague — the exact count is unspecified.",
             "Replace with an exact number or range (e.g., 'between 3 and 5')."
+        ),
+        r"\bbirkaç\b": (
+            "Ambiguity",
+            "'birkaç' belirsizdir — tam sayı belirtilmemiştir.",
+            "Kesin bir sayı veya aralık ile değiştirin (örn: '3 ile 5 arasında')."
         ),
         r"\bperiodically\b": (
             "Ambiguity",
             "'periodically' does not specify the exact frequency.",
             "Define the exact interval (e.g., 'every 24 hours')."
         ),
+        r"\bperiyodik\s+olarak\b": (
+            "Ambiguity",
+            "'periyodik olarak' tam sıklığı belirtmez.",
+            "Kesin aralığı tanımlayın (örn: 'her 24 saatte bir')."
+        ),
         r"\bsome\s+\w+\s+(features|functions|modules)\b": (
             "Ambiguity",
             "'some [features/functions/modules]' is vague — the specific items are not listed.",
             "List the specific features/functions/modules required."
+        ),
+        r"\bbazı\s+\w+\s+(özellikler|fonksiyonlar|modüller)\b": (
+            "Ambiguity",
+            "'bazı [özellikler/fonksiyonlar/modüller]' belirsizdir — spesifik öğeler listelenmemiştir.",
+            "Gerekli spesifik özellikleri/fonksiyonları/modülleri listeleyin."
         ),
         r"\bsecure\b": (
             "Testability",
             "'secure' is a vague security requirement without measurable acceptance criteria.",
             "Specify the security standard or mechanism (e.g., 'must use TLS 1.3', 'must pass OWASP Top 10 audit')."
         ),
+        r"\bgüvenli\b": (
+            "Testability",
+            "'güvenli', ölçülebilir kabul kriteri olmayan belirsiz bir güvenlik gereksinimidir.",
+            "Güvenlik standardını veya mekanizmasını belirtin (örn: 'TLS 1.3 kullanmalı', 'OWASP Top 10 denetiminden geçmeli')."
+        ),
         r"\breliable\b": (
             "Testability",
             "'reliable' is a vague availability/reliability term.",
             "Specify uptime or availability SLA (e.g., '99.9% uptime', 'MTBF > 1000 hours')."
+        ),
+        r"\bgüvenilir\b": (
+            "Testability",
+            "'güvenilir', belirsiz bir erişilebilirlik/güvenilirlik terimidir.",
+            "Çalışma süresi (uptime) veya erişilebilirlik SLA'sını belirtin (örn: '%99.9 çalışma süresi', 'MTBF > 1000 saat')."
         ),
     }
 

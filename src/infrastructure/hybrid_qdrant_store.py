@@ -1,4 +1,5 @@
 import uuid
+import json
 import math
 import re
 from typing import Any, List
@@ -322,7 +323,6 @@ class HybridQdrantStore:
         if not texts:
             logger.warning("Embedding için geçerli metin bulunamadı.")
             return False
-
         logger.info(
             "Embedding input hazır | doc_count=%d | text_count=%d | first_type=%s | first_preview=%s",
             len(valid_documents),
@@ -369,7 +369,6 @@ class HybridQdrantStore:
             })
             
             try:
-                import json
                 json.dumps(safe_payload, ensure_ascii=False)
             except UnicodeEncodeError as exc:
                 logger.error("Payload hâlâ JSON-safe değil | point=%s | hata=%s | payload_preview=%s", point_id, exc, repr(safe_payload)[:500])
@@ -399,6 +398,7 @@ class HybridQdrantStore:
             else:
                 logger.error("Qdrant upsert hatası: %s", exc)
                 raise
+        return True
 
     def hybrid_search(self, query: str, top_k: int = 5) -> List[Document]:
         dense_query = self.dense_embeddings.embed_query(query)
@@ -429,13 +429,17 @@ class HybridQdrantStore:
 
         for point in response.points:
             payload = point.payload or {}
-            metadata = payload.get("metadata", {})
-            metadata["qdrant_score"] = float(point.score)
+            # Yeni payload formatı: _metadata anahtarı altında
+            meta = payload.get("_metadata", {})
+            if not meta:
+                meta = {}
+            meta["qdrant_score"] = float(point.score)
+            meta["chunk_index"] = payload.get("_chunk_index", 0)
 
             docs.append(
                 Document(
                     page_content=payload.get("page_content", ""),
-                    metadata=metadata,
+                    metadata=meta,
                 )
             )
 

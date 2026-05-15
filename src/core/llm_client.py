@@ -60,7 +60,7 @@ def get_llm(
         temperature=temperature,
         groq_api_key=GROQ_API_KEY,
         max_retries=max_retries,
-        request_timeout=timeout,
+        timeout=timeout,
     )
 
 
