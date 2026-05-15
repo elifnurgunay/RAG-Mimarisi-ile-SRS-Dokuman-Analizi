@@ -45,17 +45,17 @@ with st.sidebar.expander("Advanced Settings", expanded=False):
     model_mode = st.selectbox(
         "Model mode",
         options=[
-            "Fast / Test - 8B",
-            "Quality - 70B"
+            "Quality - 70B",
+            "Fast / Test - 8B"
         ],
         index=0,
-        help="Use 8B for faster and cheaper tests. Use 70B only for final quality checks."
+        help="Use 70B for maximum accuracy (default). Use 8B only for fast prototyping."
     )
 
     model_name = (
-        "llama-3.1-8b-instant"
-        if model_mode == "Fast / Test - 8B"
-        else "llama-3.3-70b-versatile"
+        "llama-3.3-70b-versatile"
+        if model_mode == "Quality - 70B"
+        else "llama-3.1-8b-instant"
     )
 
     run_conflict = st.checkbox("Run conflict analysis", value=False)
