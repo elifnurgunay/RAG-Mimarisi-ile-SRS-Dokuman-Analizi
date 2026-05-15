@@ -72,7 +72,7 @@ class RetrievalService:
 
         return True
 
-    def get_all_documents(self, k: int = 100):
+    def get_all_documents(self, k: int = 500):
         return self.hybrid_store.scroll_all_documents(limit=k)
 
     def get_similar_requirements(self, query: str, top_k: int = 3):

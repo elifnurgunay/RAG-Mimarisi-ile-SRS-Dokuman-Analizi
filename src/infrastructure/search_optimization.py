@@ -91,8 +91,8 @@ class SearchOptimizer:
                 normalize_embeddings=True,
             )
             
-            for idx, emb in zip(missing_indices, new_embeddings):
-                hashlib.sha256(doc.encode("utf-8")).hexdigest()
+            for i, (idx, emb) in enumerate(zip(missing_indices, new_embeddings)):
+                d_hash = hashlib.md5(missing_docs[i].encode("utf-8")).hexdigest()
                 self._doc_embedding_cache[d_hash] = emb
                 all_embeddings[idx] = emb
             

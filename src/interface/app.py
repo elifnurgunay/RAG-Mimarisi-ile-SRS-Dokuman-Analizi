@@ -168,7 +168,7 @@ if 'analysis_report' in st.session_state:
         df = pd.DataFrame([i.model_dump() for i in report.quality_issues])
         df = df[["req_id", "type", "problem", "suggestion"]]
         df.columns = ["ID", "Problem Tipi", "Problem Açıklaması", "Önerilen Çözüm"]
-        st.dataframe(df, use_container_width=True, hide_index=True)
+        st.dataframe(df, width='stretch', hide_index=True)
     else:
         st.balloons()
         st.success("Harika! Dokümanda hiçbir aday kalite problemi tespit edilmedi.")

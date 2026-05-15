@@ -39,5 +39,5 @@ class VectorStoreService:
         return self.vector_store
         
     def similarity_search_with_score(self, query: str, k: int = 5):
-    store = self.get_store()
-    return store.similarity_search_with_score(query, k=k)
+        store = self.get_store()
+        return store.similarity_search_with_score(query, k=k)

@@ -19,8 +19,8 @@ logger = get_logger(__name__)
 class SRSWorkflow:
     def __init__(self):
         self.retriever = SRSRetriever(collection_name="elif_logic_collection")
-        self.analyzer = SRSAnalyzer()
-        self.detector = ConflictDetector()
+        self.analyzer = None
+        self.detector = None
 
     def run_full_analysis(
         self,

@@ -146,8 +146,8 @@ def run_pipeline(args: argparse.Namespace) -> dict:
     for partial in batch_reports:
         llm_issues.extend(partial.issues)
 
-    # 3. Deterministic kalite kuralları
-    logger.info("[3/5] Deterministic kalite kuralları çalıştırılıyor...")
+    # 4. Deterministik kalite kuralları
+    logger.info("[4/5] Deterministik kalite kuralları çalıştırılıyor...")
     full_text = "\n".join(chunk_texts)
     deterministic_issues = detect_deterministic_quality_issues(full_text)
     

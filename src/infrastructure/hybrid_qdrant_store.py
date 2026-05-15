@@ -292,7 +292,14 @@ class HybridQdrantStore:
         self.sparse_embeddings = SparseEmbeddingService()
 
     def recreate_collection(self, vector_size: int) -> None:
-        self.client.recreate_collection(
+        # Eski koleksiyon varsa sil, sonra yeniden oluştur
+        try:
+            self.client.delete_collection(collection_name=self.collection_name)
+            logger.info("Eski koleksiyon silindi: %s", self.collection_name)
+        except Exception:
+            pass  # Koleksiyon yoksa sorun değil
+
+        self.client.create_collection(
             collection_name=self.collection_name,
             vectors_config={
                 self.dense_vector_name: models.VectorParams(
@@ -304,6 +311,7 @@ class HybridQdrantStore:
                 self.sparse_vector_name: models.SparseVectorParams()
             },
         )
+        logger.info("Koleksiyon oluşturuldu: %s (dense_size=%d)", self.collection_name, vector_size)
 
     def add_documents(self, documents: List[Document], force_recreate: bool = True):
         if not documents:

@@ -11,7 +11,6 @@ from src.schemas.issue import RequirementIssue
 from src.schemas.report import AnalysisReport
 from src.utils.logging_utils import get_logger
 from src.utils.retry_utils import RetryPolicy
-from src.core.deterministic_quality_rules import detect_deterministic_quality_issues
 
 logger = get_logger(__name__)
 
