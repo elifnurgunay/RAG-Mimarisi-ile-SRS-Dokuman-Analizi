@@ -127,7 +127,7 @@ class AnalysisEngine:
         severity_map = {"High": 0, "Medium": 1, "Low": 2}
         result.sort(key=lambda x: severity_map.get(getattr(x, "severity", "Low"), 3))
 
-        MAX_ISSUES_PER_BATCH = 15
+        MAX_ISSUES_PER_BATCH = 30
         return result[:MAX_ISSUES_PER_BATCH]
 
     def merge_issues(
@@ -181,22 +181,16 @@ class AnalysisEngine:
                 logger.debug(f"Filtering hallucinated issue for req_id: {issue.req_id}")
                 continue
 
-            # B. Block if deterministic rule already covered this (req_id, type)
+            # B. Block if deterministic rule already covered this exact (req_id, type)
             if (issue.req_id, issue.type) in deterministic_keys:
                 continue
 
-            # C. Deduplication by (req_id, type) - keep only the first one per category
-            type_key = (issue.req_id, issue.type)
-            if type_key in llm_seen_keys:
-                continue
-
-            # D. Semantic deduplication (fallback)
+            # C. Semantic deduplication (prevent identical issues for the same requirement)
             semantic_key = (issue.req_id, issue.type, normalize(issue.problem))
             if semantic_key in llm_seen_keys:
                 continue
 
             final_issues.append(issue)
-            llm_seen_keys.add(type_key)
             llm_seen_keys.add(semantic_key)
 
         return final_issues

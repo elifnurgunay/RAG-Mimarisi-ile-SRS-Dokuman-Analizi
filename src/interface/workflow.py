@@ -9,7 +9,7 @@ from src.core.conflict_detector import ConflictDetector
 from src.core.report_builder import ReportBuilder
 from src.schemas.report import AnalysisReport
 from src.core.deterministic_quality_rules import detect_deterministic_quality_issues
-from src.utils.text_utils import clean_noise
+from src.utils.text_utils import clean_noise, split_into_batches
 from src.utils.requirement_extractor import extract_requirements_from_chunks
 from src.utils.logging_utils import get_logger
 
@@ -63,21 +63,27 @@ class SRSWorkflow:
             if doc.page_content and doc.page_content.strip()
         ]
 
-        # Tüm chunk'ları tek bir metin olarak birleştir ve analyzer'a gönder
-        # (BatchProcessor içeride 50000 karakter sınırıyla böler)
-        full_text = "\n".join(chunk_texts)
+        batches = split_into_batches(chunk_texts, max_chars=5000)
 
-        logger.info("LLM analiz başlıyor | belge=%s", os.path.basename(pdf_path))
-        partial_report = self.analyzer.analyze_text(
-            full_text,
-            doc_name=os.path.basename(pdf_path),
-        )
+        batch_reports = []
+        for index, batch_text in enumerate(batches, start=1):
+            logger.info("LLM analiz batch çalışıyor | batch=%d/%d", index, len(batches))
+            partial_report = self.analyzer.analyze_text(
+                batch_text,
+                doc_name=f"{os.path.basename(pdf_path)}::batch-{index}",
+            )
+            if partial_report:
+                batch_reports.append(partial_report)
 
-        if not partial_report:
-            logger.error("LLM analiz raporu oluşturulamadı.")
+        if not batch_reports:
+            logger.error("Hiçbir batch raporu oluşturulamadı.")
             return None
 
-        llm_issues = partial_report.issues
+        llm_issues = []
+        for partial in batch_reports:
+            llm_issues.extend(partial.issues)
+
+        full_text = "\n".join(chunk_texts)
 
         deterministic_issues = detect_deterministic_quality_issues(full_text)
         
