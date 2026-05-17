@@ -1,3 +1,4 @@
+güncel düzeltmeler https://github.com/elifnurgunay/yeni-RAG-Mimarisi-ile-SRS-Dokuman-Analizi isimli repoda bulunmaktadır.
 Bu proje, yazılım gereksinim dokümanlarını (SRS) otomatik olarak analiz etmek, gereksinim kalitesini artırmak ve ISO/IEC/IEEE 29148 standartlarına göre belirsizlik/çelişki tespiti yapmak için oluşturulmuş bir Retrieval-Augmented Generation (RAG) pipeline'ıdır. 
 📌 İçindekiler
 Proje Hakkında
